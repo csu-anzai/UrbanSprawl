@@ -18,16 +18,28 @@ struct SDLPL_BackBuffer
 	s32 pitch;
 };
 
-struct SDLPL_AudioBuffer
+struct SDLPL_AudioRingBuffer
+{
+    s32 size;
+    s32 writeCursor;
+    s32 playCursor;
+    void *data;
+};
+
+struct SDLPL_AudioOutput
 {
 	SDL_AudioDeviceID deviceID;
 	s32 samplesPerSecond;
-	s32 toneHz;
-	s16 toneVolume;
-	s32 wavePeriod;
+    u32 runningSampleIndex;
 	s32 bytesPerSample;
-	f32 tSine;
-	s32 latencySampleCount;
+    s32 secondaryBufferSize;
+    s32 safetyBytes;
+};
+
+struct SDLPL_DebugTimeMarker
+{
+    s32 playCursor;
+    s32 writeCursor;
 };
 
 struct SDLPL_WindowDimensions

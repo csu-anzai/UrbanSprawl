@@ -153,7 +153,7 @@ inline u32 SafeTruncateU64(u64 value)
 }
 
 internal_func void Game_GetAudioSamples(Game_Memory *memory, Game_AudioBuffer *audioBuffer);
-internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_AudioBuffer *audioBuffer, Game_Input *input, Game_Memory *memory);
+internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory);
 
 #define URBAN_H
 #endif // URBAN_H

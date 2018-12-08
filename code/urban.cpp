@@ -49,7 +49,7 @@ internal_func void Game_OutputSound(Game_AudioBuffer *audioBuffer, s32 toneHz)
     }
 }
 
-internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_AudioBuffer *audioBuffer, Game_Input *input, Game_Memory *memory)
+internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory)
 {
     ASSERT(sizeof(Game_State) <= memory->permanentStorageSize);
     
@@ -73,19 +73,19 @@ internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_AudioBuff
         {
             if (controller->dPadLeft.endedDown)
             {
-                gameState->xOffset -= 1;
+                gameState->xOffset -= 4;
             }
             if (controller->dPadRight.endedDown)
             {
-                gameState->xOffset += 1;
+                gameState->xOffset += 4;
             }
             if (controller->dPadUp.endedDown)
             {
-                gameState->yOffset -= 1;
+                gameState->yOffset -= 4;
             }
             if (controller->dPadDown.endedDown)
             {
-                gameState->yOffset += 1;
+                gameState->yOffset += 4;
             }
         }
         

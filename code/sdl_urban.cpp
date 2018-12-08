@@ -53,6 +53,7 @@ typedef double f64;
 
 #define MAX_CONTROLLERS 2
 global_var SDLPL_BackBuffer globalBackBuffer = {};
+global_var SDLPL_AudioRingBuffer globalAudioRingBuffer = {};
 
 #if URBAN_INTERNAL
 //////////////////////// DEBUG PLATFORM CODE //////////////////////
@@ -177,24 +178,47 @@ internal_func void SDLPL_OpenControllers(SDL_GameController **controllers)
 	}
 }
 
-internal_func void SDLPL_OpenAudio(SDLPL_AudioBuffer *audioBuffer)
+internal_func void SDLPL_AudioCallback(void *userData, u8 *audioData, s32 length)
+{
+    SDLPL_AudioRingBuffer *ringBuffer = (SDLPL_AudioRingBuffer *)userData;
+    
+    s32 region1Size = length;
+    s32 region2Size = 0;
+    if ((ringBuffer->playCursor + length) > ringBuffer->size)
+    {
+        region1Size = ringBuffer->size - ringBuffer->playCursor;
+        region2Size = length  - region1Size;
+    }
+    
+    memcpy(audioData, (u8 *)ringBuffer->data + ringBuffer->playCursor, region1Size);
+    memcpy(&audioData[region1Size], ringBuffer->data, region2Size);
+    ringBuffer->playCursor = (ringBuffer->playCursor + length) % ringBuffer->size;
+    ringBuffer->writeCursor = (ringBuffer->playCursor + length) % ringBuffer->size;
+}
+
+internal_func void SDLPL_OpenAudio(SDLPL_AudioOutput *audioOutput)
 {
 	SDL_AudioSpec desiredSpec = {};
-	SDL_AudioSpec audioSpec = {};
-	
-	desiredSpec.freq = audioBuffer->samplesPerSecond;
+    SDL_AudioSpec audioSpec = {};
+    
+	desiredSpec.freq = audioOutput->samplesPerSecond;
 	desiredSpec.format = AUDIO_S16LSB;
 	desiredSpec.channels = 2;
-	desiredSpec.samples = (u16)(audioBuffer->samplesPerSecond * audioBuffer->bytesPerSample / 60);
+	desiredSpec.samples = 512;
+    desiredSpec.callback = &SDLPL_AudioCallback;
+    desiredSpec.userdata = &globalAudioRingBuffer;
 	
-	audioBuffer->deviceID = SDL_OpenAudioDevice(0, 0, &desiredSpec, &audioSpec, 0);
+    globalAudioRingBuffer.size = audioOutput->secondaryBufferSize;
+    globalAudioRingBuffer.data = calloc(audioOutput->secondaryBufferSize, 1);
+    
+    audioOutput->deviceID = SDL_OpenAudioDevice(0, 0, &desiredSpec, &audioSpec, 0);
 	
-	if (audioBuffer->deviceID)
+	if (audioOutput->deviceID)
 	{
 		if (audioSpec.format != AUDIO_S16LSB)
 		{
 			printf("Failed to retrieve AUDIO_S16LSB as the audio format");
-			SDL_CloseAudioDevice(audioBuffer->deviceID);
+			SDL_CloseAudioDevice(audioOutput->deviceID);
 		}
 		else
 		{
@@ -207,10 +231,75 @@ internal_func void SDLPL_OpenAudio(SDLPL_AudioBuffer *audioBuffer)
 	}
 }
 
-internal_func void SDLPL_FillAudioQueue(SDLPL_AudioBuffer *audioBuffer, Game_AudioBuffer *gameAudioBuffer, s32 writeBytes)
+internal_func void SDLPL_FillAudioBuffer(SDLPL_AudioOutput *audioOutput, Game_AudioBuffer *gameAudioBuffer, s32 lockByte, s32 writeBytes)
 {
-	SDL_QueueAudio(audioBuffer->deviceID, gameAudioBuffer->samples, writeBytes);
+    s16 *samples = gameAudioBuffer->samples;
+    
+    void *region1 = (u8 *)globalAudioRingBuffer.data + lockByte;
+    s32 region1Size = writeBytes;
+    if ((region1Size + lockByte) > audioOutput->secondaryBufferSize)
+    {
+        region1Size = audioOutput->secondaryBufferSize - lockByte;
+    }
+    
+    void *region2 = globalAudioRingBuffer.data;
+    s32 region2Size = writeBytes - region1Size;
+    s32 region1SampleCount = region1Size / audioOutput->bytesPerSample;
+    s16 *sampleOut = (s16 *)region1;
+    for (s32 sampleIndex = 0; sampleIndex < region1SampleCount; ++sampleIndex)
+    {
+        *sampleOut++ = *samples++;
+        *sampleOut++ = *samples++;
+        ++audioOutput->runningSampleIndex;
+    }
+    
+    s32 region2SampleCount = region2Size / audioOutput->bytesPerSample;
+    sampleOut = (s16 *)region2;
+    for (s32 sampleIndex = 0; sampleIndex < region2SampleCount; ++sampleIndex)
+    {
+        *sampleOut++ = *samples++;
+        *sampleOut++ = *samples++;
+        ++audioOutput->runningSampleIndex;
+    }
 }
+
+#if URBAN_INTERNAL
+internal_func void SDLPL_DebugDrawVerticalLine(s32 x, s32 top, s32 bottom, u32 colour)
+{
+    u8 *pixel = ((u8 *)globalBackBuffer.memory + x * globalBackBuffer.bytesPerPixel + top *globalBackBuffer.pitch);
+    
+    for (s32 y = top; y < bottom; ++y)
+    {
+        *(u32 *)pixel = colour;
+        pixel += globalBackBuffer.pitch;
+    }
+}
+
+inline void SDLPL_DebugDrawAudioBufferMarker(SDLPL_AudioOutput *audioOutput, f32 c, s32 padX, s32 top, s32 bottom, s32 value, u32 colour)
+{
+    ASSERT(value < audioOutput->secondaryBufferSize);
+    f32 xFloat = (c * (f32)value);
+    s32 x = padX + (s32)xFloat;
+    SDLPL_DebugDrawVerticalLine(x, top, bottom, colour);
+}
+
+internal_func void SDLPL_DebugDrawAudioSyncDisplay(SDLPL_DebugTimeMarker *markers, SDLPL_AudioOutput *audioOutput, s32 markerCount, f32 targetSecondsPerFrame)
+{
+    s32 padX = 16;
+    s32 padY = 16;
+    
+    s32 top = padY;
+    s32 bottom = globalBackBuffer.height - padY;
+    
+    f32 c = (f32)(globalBackBuffer.width - (2 * padX)) / (f32)audioOutput->secondaryBufferSize;
+    for (s32 markerIndex = 0; markerIndex < markerCount; ++markerIndex)
+    {
+        SDLPL_DebugTimeMarker *currMarker = &markers[markerIndex];
+        SDLPL_DebugDrawAudioBufferMarker(audioOutput, c, padX, top, bottom, currMarker->playCursor, 0xFFFF0000);
+        SDLPL_DebugDrawAudioBufferMarker(audioOutput, c, padX, top, bottom, currMarker->writeCursor, 0xFFFFFFFF);
+    }
+}
+#endif
 
 internal_func void SDLPL_ProcessControllerButtons(Game_ButtonState *oldState, Game_ButtonState *newState, b32 buttonValue)
 {
@@ -241,6 +330,13 @@ internal_func void SDLPL_ProcessKeyPress(Game_ButtonState *newState, b32 isDown)
         newState->endedDown = isDown;
         ++newState->halfTransitionCount;
     }
+}
+
+internal_func f32 SDLPL_GetSecondsElapsed(u64 old, u64 curr)
+{
+    f32 result = 0.0f;
+    result = ((f32)(curr - old) / (f32)SDL_GetPerformanceFrequency());
+    return result;
 }
 
 internal_func void SDLPL_HandleWindowEvent(SDL_Event *event)
@@ -410,36 +506,49 @@ s32 main(s32 argc, char *argv[])
 	
 	if (window)
 	{
-		SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+		SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
 		
 		if (renderer)
 		{
-			s32 targetFramesPerSecond = 60;
-			
-			b32 running = true;
+            SDL_DisplayMode displayMode;
+            s32 displayIndex = SDL_GetWindowDisplayIndex(window);
+            
+            s32 monitorRefreshHz = 0;
+            if ((SDL_GetDesktopDisplayMode(displayIndex, &displayMode) != 0) || (displayMode.refresh_rate == 0))
+            {
+                // NOTE(bSalmon): 60Hz is the default Hz
+                monitorRefreshHz = 60;
+            }
+            else
+            {
+                monitorRefreshHz = displayMode.refresh_rate;
+            }
+            
+            f32 targetSecondsPerFrame = 1.0f / (f32)monitorRefreshHz;
+            
+            b32 running = true;
 			
 			SDLPL_ResizePixelBuffer(window, renderer, &globalBackBuffer);
 			
 			// NOTE(bSalmon): SDL_CONTROLLERDEVICEADDED is called at the start of the program so it is not required to call SDLPL_OpenControllers before the main loop
 			SDL_GameController *sdlControllers[MAX_CONTROLLERS] = {0, 0};
 			
-			SDLPL_AudioBuffer audioBuffer = {};
-			audioBuffer.samplesPerSecond = 48000;
-			audioBuffer.toneHz = 512;
-			audioBuffer.toneVolume = 3000;
-			audioBuffer.wavePeriod = audioBuffer.samplesPerSecond / audioBuffer.toneHz;
-			audioBuffer.bytesPerSample = sizeof(s16) * 2;
-			audioBuffer.latencySampleCount = audioBuffer.samplesPerSecond / (targetFramesPerSecond / 10);
+			SDLPL_AudioOutput audioOutput = {};
+			audioOutput.samplesPerSecond = 48000;
+            audioOutput.runningSampleIndex = 0;
+			audioOutput.bytesPerSample = sizeof(s16) * 2;
+            audioOutput.secondaryBufferSize = audioOutput.samplesPerSecond * audioOutput.bytesPerSample;
+			audioOutput.safetyBytes = (s32)(((f32)audioOutput.samplesPerSecond * (f32)audioOutput.bytesPerSample / monitorRefreshHz) / 2.0f);
 			b32 soundPlaying = false;
 			
 			// Open the audio device and retrieve the Device ID for later use
-			SDLPL_OpenAudio(&audioBuffer);
+			SDLPL_OpenAudio(&audioOutput);
 			
-            s16 *samples = (s16 *)VirtualAlloc(0, (audioBuffer.latencySampleCount * audioBuffer.bytesPerSample), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            s16 *samples = (s16 *)calloc(audioOutput.samplesPerSecond, audioOutput.bytesPerSample);
             
 			if (!soundPlaying)
 			{
-				SDL_PauseAudioDevice(audioBuffer.deviceID, 0);
+				SDL_PauseAudioDevice(audioOutput.deviceID, 0);
 				soundPlaying = true;
 			}
 			
@@ -464,6 +573,13 @@ s32 main(s32 argc, char *argv[])
                 Game_Input *newInput = &input[0];
                 Game_Input *oldInput = &input[1];
                 
+#if URBAN_INTERNAL
+                // NOTE(bSalmon): 30 DebugTimeMarkers because it is half of my monitor's refresh rate
+                s32 debugTimeMarkerIndex = 0;
+                SDLPL_DebugTimeMarker debugTimeMarkers[30] = {};
+#endif
+                
+                u64 flipWallClock = SDL_GetPerformanceCounter();
                 u64 lastCounter = SDL_GetPerformanceCounter();
                 u64 lastCycleCount = __rdtsc();
                 while (running)
@@ -561,14 +677,6 @@ s32 main(s32 argc, char *argv[])
                         }
                     }
                     
-                    s32 targetQueueBytes = audioBuffer.latencySampleCount * audioBuffer.bytesPerSample;
-                    s32 writeBytes = targetQueueBytes - SDL_GetQueuedAudioSize(audioBuffer.deviceID);
-                    
-                    Game_AudioBuffer gameAudioBuffer = {};
-                    gameAudioBuffer.samplesPerSecond = audioBuffer.samplesPerSecond;
-                    gameAudioBuffer.sampleCount = writeBytes / audioBuffer.bytesPerSample;
-                    gameAudioBuffer.samples = samples;
-                    
                     Game_BackBuffer gameBackBuffer = {};
                     gameBackBuffer.memory = globalBackBuffer.memory;
                     gameBackBuffer.width = globalBackBuffer.width;
@@ -576,17 +684,73 @@ s32 main(s32 argc, char *argv[])
                     gameBackBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
                     gameBackBuffer.pitch = globalBackBuffer.pitch;
                     
-                    Game_UpdateRender(&gameBackBuffer, &gameAudioBuffer, newInput, &gameMem);
+                    Game_UpdateRender(&gameBackBuffer, newInput, &gameMem);
+                    
+                    // NOTE(bSalmon): Sound Output Test
+                    SDL_LockAudio();
+                    
+                    s32 lockByte = (audioOutput.runningSampleIndex * audioOutput.bytesPerSample) % audioOutput.secondaryBufferSize;
+                    s32 targetCursor = (globalAudioRingBuffer.playCursor + (audioOutput.safetyBytes * audioOutput.bytesPerSample)) % audioOutput.secondaryBufferSize;
+                    
+                    s32 writeBytes;
+                    if (lockByte > targetCursor)
+                    {
+                        writeBytes = audioOutput.secondaryBufferSize - lockByte;
+                        writeBytes += targetCursor;
+                    }
+                    else
+                    {
+                        writeBytes = targetCursor - lockByte;
+                    }
+                    
+                    SDL_UnlockAudio();
+                    
+                    Game_AudioBuffer gameAudioBuffer = {};
+                    gameAudioBuffer.samplesPerSecond = audioOutput.samplesPerSecond;
+                    gameAudioBuffer.sampleCount = writeBytes / audioOutput.bytesPerSample;
+                    gameAudioBuffer.samples = samples;
+                    
+                    Game_GetAudioSamples(&gameMem, &gameAudioBuffer);
                     
                     if (writeBytes > 0)
                     {
-                        SDLPL_FillAudioQueue(&audioBuffer, &gameAudioBuffer, writeBytes);
+                        SDLPL_FillAudioBuffer(&audioOutput, &gameAudioBuffer, lockByte, writeBytes);
                     }
+                    
+                    if (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetSecondsPerFrame)
+                    {
+                        s32 sleepTime = (s32)((targetSecondsPerFrame - SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter())) * 1000) - 1;
+                        if (sleepTime > 0)
+                        {
+                            SDL_Delay(sleepTime);
+                        }
+                        
+                        while (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetSecondsPerFrame)
+                        {
+                            // Spin
+                        }
+                    }
+                    
+                    u64 endCounter = SDL_GetPerformanceCounter();
+                    
+#if URBAN_INTERNAL
+                    SDLPL_DebugDrawAudioSyncDisplay(debugTimeMarkers, &audioOutput, ARRAY_COUNT(debugTimeMarkers), targetSecondsPerFrame);
+#endif
                     
                     SDLPL_PresentBuffer(window, renderer, &globalBackBuffer);
                     
+#if URBAN_INTERNAL
+                    SDLPL_DebugTimeMarker *marker = &debugTimeMarkers[debugTimeMarkerIndex++];
+                    if (debugTimeMarkerIndex > ARRAY_COUNT(debugTimeMarkers))
+                    {
+                        debugTimeMarkerIndex = 0;
+                    }
+                    
+                    marker->playCursor = globalAudioRingBuffer.playCursor;
+                    marker->writeCursor = globalAudioRingBuffer.writeCursor;
+#endif
+                    
                     u64 endCycleCount = __rdtsc();
-                    u64 endCounter = SDL_GetPerformanceCounter();
                     u64 counterElapsed = endCounter - lastCounter;
                     u64 cyclesElapsed = endCycleCount - lastCycleCount;
                     
@@ -595,6 +759,7 @@ s32 main(s32 argc, char *argv[])
                     f64 mcPerFrame = (f64)cyclesElapsed / (1000.0f * 1000.0f);
                     
                     printf("Frame Stats: %.02fms/f, %.02ff/s, %.02fmc/f\n", msPerFrame, fps, mcPerFrame);
+                    
                     lastCycleCount = endCycleCount;
                     lastCounter = endCounter;
                     

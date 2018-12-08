@@ -1,0 +1,1 @@
+%windir%\system32\cmd.exe /k "s:\urban\misc\shell.bat"

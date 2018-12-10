@@ -30,7 +30,7 @@ internal_func void Game_OutputSound(Game_AudioBuffer *audioBuffer, s32 toneHz)
 {
     local_persist f32 tSine;
     s16 toneVolume = 3000;
-    s32 wavePeriod = audioBuffer->samplesPerSecond/toneHz;
+    s32 wavePeriod = audioBuffer->sampleRate/toneHz;
     
     s16 *sampleOut = audioBuffer->samples;
     for(int sampleIndex = 0; sampleIndex < audioBuffer->sampleCount; ++sampleIndex)
@@ -49,7 +49,7 @@ internal_func void Game_OutputSound(Game_AudioBuffer *audioBuffer, s32 toneHz)
     }
 }
 
-internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory)
+extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
 {
     ASSERT(sizeof(Game_State) <= memory->permanentStorageSize);
     
@@ -98,7 +98,7 @@ internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_Input *in
     Game_RenderTestPixels(backBuffer, gameState->xOffset, gameState->yOffset);
 }
 
-internal_func void Game_GetAudioSamples(Game_Memory *memory, Game_AudioBuffer *audioBuffer)
+extern "C" GAME_GET_AUDIO_SAMPLES(Game_GetAudioSamples)
 {
     Game_State *gameState = (Game_State *)memory->permanentStorage;
     Game_OutputSound(audioBuffer, gameState->toneHz);

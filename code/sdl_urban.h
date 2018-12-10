@@ -7,6 +7,14 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #ifndef SDL_URBAN_H
 
+#include "urban.h"
+
+#if URBAN_WIN32
+#include <Windows.h>
+#endif
+
+#define SDL_STATE_FILE_PATH_MAX 4096
+
 struct SDLPL_BackBuffer
 {
 	void *memory;
@@ -29,7 +37,7 @@ struct SDLPL_AudioRingBuffer
 struct SDLPL_AudioOutput
 {
 	SDL_AudioDeviceID deviceID;
-	s32 samplesPerSecond;
+	s32 sampleRate;
     u32 runningSampleIndex;
 	s32 bytesPerSample;
     s32 secondaryBufferSize;
@@ -46,6 +54,46 @@ struct SDLPL_WindowDimensions
 {
 	s32 width;
 	s32 height;
+};
+
+#if URBAN_WIN32
+struct SDLPL_GameCode
+{
+    HMODULE gameCodeDLL;
+    FILETIME dllLastWriteTime;
+    
+    game_updateRender *UpdateRender;
+    game_getAudioSamples *GetAudioSamples;
+    
+    b32 isValid;
+};
+
+struct SDLPL_ReplayBuffer
+{
+    HANDLE fileHandle;
+    HANDLE memoryMap;
+    char replayFilename[SDL_STATE_FILE_PATH_MAX];
+    void *memBlock;
+};
+#endif
+
+struct SDLPL_State
+{
+    u64 totalSize;
+    void *gameMemBlock;
+    
+#if URBAN_WIN32
+    char exeName[SDL_STATE_FILE_PATH_MAX];
+    char *exeNameBegin;
+    
+    SDLPL_ReplayBuffer replayBuffers[4];
+    
+    HANDLE recordingHandle;
+    s32 inputRecordingIndex;
+    
+    HANDLE playbackHandle;
+    s32 inputPlaybackIndex;
+#endif
 };
 
 inline SDLPL_WindowDimensions SDLPL_GetWindowDimensions(SDL_Window *window)

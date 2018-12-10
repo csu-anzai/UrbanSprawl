@@ -7,6 +7,33 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #ifndef URBAN_H
 
+// Static Definitions
+#define internal_func static
+#define local_persist static
+#define global_var static
+
+// Typedefs
+#include <stdint.h>
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef size_t mem_index;
+
+typedef int32_t b32;
+typedef bool b8;
+
+typedef float f32;
+typedef double f64;
+
+#include <math.h>
+
 // Utilities
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define SWAP(a, b) {decltype(a) temp = a; a = b; b = temp;}
@@ -34,9 +61,14 @@ struct Debug_ReadFileResult
     void *contents;
 };
 
-internal_func Debug_ReadFileResult Debug_PlatformReadFile(char *filename);
-internal_func void Debug_PlatformFreeFileMem(void *memory);
-internal_func b32 Debug_PlatformWriteFile(char *filename, u32 memSize, void *memory);
+#define DEBUG_PLATFORM_READ_FILE(funcName) Debug_ReadFileResult funcName(char *filename)
+typedef DEBUG_PLATFORM_READ_FILE(debug_platformReadFile);
+
+#define DEBUG_PLATFORM_FREE_FILE_MEM(funcName) void funcName(void *memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEM(debug_platformFreeFileMem);
+
+#define DEBUG_PLATFORM_WRITE_FILE(funcName) b32 funcName(char *filename, u32 memSize, void *memory)
+typedef DEBUG_PLATFORM_WRITE_FILE(debug_platformWriteFile);
 #endif
 
 struct Game_BackBuffer
@@ -51,7 +83,7 @@ struct Game_BackBuffer
 
 struct Game_AudioBuffer
 {
-    s32 samplesPerSecond;
+    s32 sampleRate;
     s32 sampleCount;
     s16 *samples;
 };
@@ -130,6 +162,10 @@ struct Game_Memory
     
     u64 transientStorageSize;
     void *transientStorage;
+    
+    debug_platformReadFile *Debug_PlatformReadFile;
+    debug_platformFreeFileMem *Debug_PlatformFreeFileMem;
+    debug_platformWriteFile *Debug_PlatformWriteFile;
 };
 
 struct Game_State
@@ -152,8 +188,39 @@ inline u32 SafeTruncateU64(u64 value)
     return result;
 }
 
-internal_func void Game_GetAudioSamples(Game_Memory *memory, Game_AudioBuffer *audioBuffer);
-internal_func void Game_UpdateRender(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory);
+inline void SDLPL_ConcatenateStrings(mem_index sourceACount, char *sourceA,
+                                     mem_index sourceBCount, char *sourceB,
+                                     mem_index destCount, char *dest)
+{
+	for (s32 i = 0; i < sourceACount; ++i)
+	{
+		*dest++ = *sourceA++;
+	}
+	
+	for (s32 i = 0; i < sourceBCount; ++i)
+	{
+		*dest++ = *sourceB++;
+	}
+	
+	*dest++ = 0;
+}
+
+inline s32 SDLPL_StringLength(char *string)
+{
+	s32 result = 0;
+	while (*string++)
+	{
+		++result;
+	}
+	
+	return result;
+}
+
+#define GAME_UPDATE_RENDER(funcName) void funcName(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory)
+typedef GAME_UPDATE_RENDER(game_updateRender);
+
+#define GAME_GET_AUDIO_SAMPLES(funcName) void funcName(Game_Memory *memory, Game_AudioBuffer *audioBuffer)
+typedef GAME_GET_AUDIO_SAMPLES(game_getAudioSamples);
 
 #define URBAN_H
 #endif // URBAN_H

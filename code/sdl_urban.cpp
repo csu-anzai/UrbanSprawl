@@ -19,20 +19,18 @@ the Game's Update and Render loop is able to be built on top of it
 // DUE TO THIS CURRENTLY BEING A PROTOTYPE PLATFORM LAYER TO SUPPORT THE IN DEVELOPMENT GAME,
 // RESTRUCTURE IS NEEDED LATER TO MOVE AWAY FROM THIS WIN32 DEPENDENCE
 
+#if URBAN_WIN32
+#include <Windows.h>
+#endif
+
 #include "SDL/SDL.h"
+#include "SDL/SDL_net.h"
+
 #include "sdl_urban.h"
 #include "urban.h"
 #include "sdl_urban_dev.cpp"
 
 #include <stdio.h>
-
-// TODO(bSalmon): Create separate Memory Allocation library so that this doesn't need to be included
-// TODO(bSalmon): Debug File Management Functions also need to be removed to remove Windows.h
-#if URBAN_WIN32
-#include <Windows.h>
-#endif
-
-#include <sys/stat.h>
 
 #define MAX_CONTROLLERS 2
 global_var SDLPL_BackBuffer globalBackBuffer = {};
@@ -508,7 +506,15 @@ s32 main(s32 argc, char *argv[])
     if (SDL_Init(sdlInitFlags) != 0)
     {
         printf("SDL_Init Failed: %s\n", SDL_GetError());
+        return 1;
     }
+    if (SDLNet_Init() == -1)
+    {
+        printf("SDLNet_Init Failed: %s\n", SDLNet_GetError());
+        return 2;
+    }
+    
+    b32 isMultiplayer = (argv[1] == "m");
     
     // NOTE(bSalmon): This is necessary due to some incorrect behaviour with some Controller Axis'
     SDL_GameControllerAddMappingsFromFile("../gamecontrollerdb.txt");
@@ -557,6 +563,48 @@ s32 main(s32 argc, char *argv[])
             b32 pause = false;
             
             SDLPL_ResizePixelBuffer(window, renderer, &globalBackBuffer);
+            
+            // Networking
+            u16 port = 1842;
+            UDPsocket udpSock = SDLNet_UDP_Open(0);
+            if (!udpSock)
+            {
+                printf("SDLNet_UDP_Open Failed: %s\n", SDLNet_GetError());
+            }
+            
+            IPaddress address;
+            s32 hostFound = SDLNet_ResolveHost(&address, "localhost", port);
+            if (hostFound == -1)
+            {
+                printf("Failed to Resolve Host: %s\n", SDLNet_GetError());
+            }
+            else
+            {
+                u8 ip1 = (address.host >> 24) & 0xFF;
+                u8 ip2 = (address.host >> 16) & 0xFF;
+                u8 ip3 = (address.host >> 8) & 0xFF;
+                u8 ip4 = address.host & 0xFF;
+                u16 ipPort = address.port;
+                printf("Resolved Host at IP Address: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
+            }
+            
+            UDPpacket *packet;
+            packet = SDLNet_AllocPacket(512);
+            
+            packet->data = (u8 *)"Hello World\n";
+            packet->address.host = address.host;
+            packet->address.port = address.port;
+            packet->len = (s32)strlen((char *)packet->data) + 1;
+            
+            s32 sent = 0;
+            sent = SDLNet_UDP_Send(udpSock, -1, packet);
+            if (sent == 0)
+            {
+                printf("Packet Send Failed: %s\n", SDLNet_GetError());
+            }
+            printf("Packet Sent containing: %s\n", (char *)packet->data);
+            
+            SDLNet_FreePacket(packet);
             
             // NOTE(bSalmon): SDL_CONTROLLERDEVICEADDED is called at the start of the program so it is not required to call SDLPL_OpenControllers before the main loop
             SDL_GameController *sdlControllers[MAX_CONTROLLERS] = {0, 0};
@@ -884,6 +932,7 @@ s32 main(s32 argc, char *argv[])
         }
     }
     
+    SDLNet_Quit();
     SDL_Quit();
     return 0;
 }

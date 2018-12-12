@@ -33,9 +33,9 @@ internal_func void SDLPL_GetExeFileName(SDLPL_State *state)
 
 internal_func void SDLPL_BuildExePathFileName(SDLPL_State *state, char *filename, s32 destCount, char *dest)
 {
-	SDLPL_ConcatenateStrings(state->exeNameBegin - state->exeName, state->exeName,
-							 SDLPL_StringLength(filename), filename,
-							 destCount, dest);
+	Game_ConcatenateStrings(state->exeNameBegin - state->exeName, state->exeName,
+                            Game_StringLength(filename), filename,
+                            destCount, dest);
 	
 }
 

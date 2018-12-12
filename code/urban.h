@@ -50,7 +50,7 @@ typedef double f64;
 #define TERABYTES(value) (GIGABYTES(value)*1024LL)
 
 #define PORT 1842
-#define SOCKET_BUFFER_SIZE 1024
+#define INCOMING_PACKET_SIZE 128
 
 #define PI 3.14159265359f
 
@@ -175,6 +175,19 @@ struct Game_State
     s32 toneHz;
 };
 
+struct Game_NetworkPacket
+{
+    u8 data[INCOMING_PACKET_SIZE];
+};
+
+// NOTE(bSalmon): I think this should just be a clone of Game_State?
+struct InterpretedNetworkData
+{
+    s32 xOffset;
+    s32 yOffset;
+    s32 toneHz;
+};
+
 inline Game_Controller *GetGameController(Game_Input *input, s32 controllerIndex)
 {
     ASSERT(controllerIndex < ARRAY_COUNT(input->controllers));
@@ -188,9 +201,9 @@ inline u32 SafeTruncateU64(u64 value)
     return result;
 }
 
-inline void SDLPL_ConcatenateStrings(mem_index sourceACount, char *sourceA,
-                                     mem_index sourceBCount, char *sourceB,
-                                     mem_index destCount, char *dest)
+inline void Game_ConcatenateStrings(mem_index sourceACount, char *sourceA,
+                                    mem_index sourceBCount, char *sourceB,
+                                    mem_index destCount, char *dest)
 {
 	for (s32 i = 0; i < sourceACount; ++i)
 	{
@@ -205,7 +218,7 @@ inline void SDLPL_ConcatenateStrings(mem_index sourceACount, char *sourceA,
 	*dest++ = 0;
 }
 
-inline s32 SDLPL_StringLength(char *string)
+inline s32 Game_StringLength(char *string)
 {
 	s32 result = 0;
 	while (*string++)
@@ -216,7 +229,7 @@ inline s32 SDLPL_StringLength(char *string)
 	return result;
 }
 
-#define GAME_UPDATE_RENDER(funcName) void funcName(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory)
+#define GAME_UPDATE_RENDER(funcName) void funcName(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory, b32 multiplayer, Game_NetworkPacket *networkPacket)
 typedef GAME_UPDATE_RENDER(game_updateRender);
 
 #define GAME_GET_AUDIO_SAMPLES(funcName) void funcName(Game_Memory *memory, Game_AudioBuffer *audioBuffer)

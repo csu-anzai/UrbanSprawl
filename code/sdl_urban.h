@@ -13,6 +13,8 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #include <Windows.h>
 #endif
 
+#include <stdio.h>
+
 #define SDL_STATE_FILE_PATH_MAX 4096
 
 struct SDLPL_BackBuffer
@@ -42,6 +44,12 @@ struct SDLPL_AudioOutput
 	s32 bytesPerSample;
     s32 secondaryBufferSize;
     s32 safetyBytes;
+};
+
+struct SDLPL_OutgoingNetworkPacket
+{
+    u8 *data;
+    s32 dataSize;
 };
 
 struct SDLPL_DebugTimeMarker
@@ -101,6 +109,20 @@ inline SDLPL_WindowDimensions SDLPL_GetWindowDimensions(SDL_Window *window)
 	SDLPL_WindowDimensions result = {};
 	SDL_GetWindowSize(window, &result.width, &result.height);
 	return result;
+}
+
+inline char *SDLPL_UnpackIPAddress(IPaddress *address)
+{
+    char *result = 0;
+    
+    u8 ip1 = (address->host >> 24) & 0xFF;
+    u8 ip2 = (address->host >> 16) & 0xFF;
+    u8 ip3 = (address->host >> 8) & 0xFF;
+    u8 ip4 = address->host & 0xFF;
+    u16 ipPort = address->port;
+    sprintf_s(result, sizeof(result), "%d.%d.%d.%d:%d", ip4, ip3, ip2, ip1, ipPort);
+    
+    return result;
 }
 
 #define SDL_URBAN_H

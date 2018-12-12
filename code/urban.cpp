@@ -7,6 +7,9 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #include "urban.h"
 
+#include <stdio.h>
+#include <cstring>
+
 internal_func void Game_RenderTestPixels(Game_BackBuffer *backBuffer, s32 xOffset, s32 yOffset)
 {
     u8 *row = (u8 *)backBuffer->memory;
@@ -49,6 +52,28 @@ internal_func void Game_OutputSound(Game_AudioBuffer *audioBuffer, s32 toneHz)
     }
 }
 
+internal_func InterpretedNetworkData InterpretNetworkData(Game_NetworkPacket *networkPacket)
+{
+    InterpretedNetworkData result = {};
+    
+    s32 index = 0;
+    
+    memcpy(&networkPacket->data[index], &result.xOffset, sizeof(networkPacket->data[index]));
+    index += sizeof(networkPacket->data[index]);
+    
+    memcpy(&networkPacket->data[index], &result.yOffset, sizeof(networkPacket->data[index]));
+    index += sizeof(networkPacket->data[index]);
+    
+    memcpy(&networkPacket->data[index], &result.toneHz, sizeof(networkPacket->data[index]));
+    index += sizeof(networkPacket->data[index]);
+    
+    printf("\n\nxOffset: %d\n", result.xOffset);
+    printf("yOffset: %d\n", result.yOffset);
+    printf("toneHz: %d\n", result.toneHz);
+    
+    return result;
+}
+
 extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
 {
     ASSERT(sizeof(Game_State) <= memory->permanentStorageSize);
@@ -60,38 +85,54 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
         memory->memInitialised = true;
     }
     
-    for (s32 controllerIndex = 0; controllerIndex < ARRAY_COUNT(input->controllers); ++controllerIndex)
+    if (multiplayer)
     {
-        Game_Controller *controller = GetGameController(input, controllerIndex);
-        if (controller->isAnalog)
-        {
-            gameState->xOffset += (s32)(4.0f * controller->lAverageX);
-            gameState->yOffset -= (s32)(4.0f * controller->lAverageY);
-            gameState->toneHz = 256 + (s32)(128.0f * (controller->rAverageY));
-        }
-        else
-        {
-            if (controller->dPadLeft.endedDown)
-            {
-                gameState->xOffset -= 4;
-            }
-            if (controller->dPadRight.endedDown)
-            {
-                gameState->xOffset += 4;
-            }
-            if (controller->dPadUp.endedDown)
-            {
-                gameState->yOffset -= 4;
-            }
-            if (controller->dPadDown.endedDown)
-            {
-                gameState->yOffset += 4;
-            }
-        }
+        InterpretedNetworkData networkData = {};
+        networkData = InterpretNetworkData(networkPacket);
+        gameState->xOffset = networkData.xOffset;
+        gameState->yOffset = networkData.yOffset;
+        gameState->toneHz = networkData.toneHz;
         
-        if (controller->faceDown.endedDown)
+        if (gameState->toneHz == 0)
         {
-            gameState->toneHz = 5;
+            gameState->toneHz = 256;
+        }
+    }
+    else
+    {
+        for (s32 controllerIndex = 0; controllerIndex < ARRAY_COUNT(input->controllers); ++controllerIndex)
+        {
+            Game_Controller *controller = GetGameController(input, controllerIndex);
+            if (controller->isAnalog)
+            {
+                gameState->xOffset += (s32)(4.0f * controller->lAverageX);
+                gameState->yOffset -= (s32)(4.0f * controller->lAverageY);
+                gameState->toneHz = 256 + (s32)(128.0f * (controller->rAverageY));
+            }
+            else
+            {
+                if (controller->dPadLeft.endedDown)
+                {
+                    gameState->xOffset -= 4;
+                }
+                if (controller->dPadRight.endedDown)
+                {
+                    gameState->xOffset += 4;
+                }
+                if (controller->dPadUp.endedDown)
+                {
+                    gameState->yOffset -= 4;
+                }
+                if (controller->dPadDown.endedDown)
+                {
+                    gameState->yOffset += 4;
+                }
+            }
+            
+            if (controller->faceDown.endedDown)
+            {
+                gameState->toneHz = 5;
+            }
         }
     }
     

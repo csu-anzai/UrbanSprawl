@@ -340,6 +340,34 @@ internal_func void SDLPL_HandleWindowEvent(SDL_Event *event)
     }
 }
 
+internal_func void SDLPL_InitNetworkSocket(UDPsocket *udpSock, IPaddress *address, char *hostName)
+{
+    u16 port = 1842;
+    *udpSock = SDLNet_UDP_Open(0);
+    if (!udpSock)
+    {
+        printf("SDLNet_UDP_Open Failed: %s\n", SDLNet_GetError());
+    }
+    
+    s32 hostFound = SDLNet_ResolveHost(address, hostName, port);
+    if (hostFound == -1)
+    {
+        printf("Failed to Resolve Host: %s\n", SDLNet_GetError());
+    }
+    else
+    {
+        char *ip = SDLPL_UnpackIPAddress(address);
+        printf("Resolved Host at IP Address: %s\n", ip);
+    }
+}
+
+internal_func void SDLPL_PackOutgoingPacket(SDLPL_OutgoingNetworkPacket *outPlatformPacket, Game_Input *newInput)
+{
+    // TODO(bSalmon): Include a Time Indicator in the data so the server can process data appropriately
+    outPlatformPacket->data = (u8 *)newInput;
+    outPlatformPacket->dataSize = sizeof(*newInput);
+}
+
 internal_func void SDLPL_HandleEvent(SDL_Event *event, SDL_GameController **controllers, Game_Controller *keyboardController, SDLPL_State *state, b32 *running, b32 *pause)
 {
     switch (event->type)
@@ -514,7 +542,11 @@ s32 main(s32 argc, char *argv[])
         return 2;
     }
     
-    b32 isMultiplayer = (argv[1] == "m");
+    b32 multiplayer = false;
+    if (argc == 2)
+    {
+        multiplayer = (strcmp(argv[1], "m") == 0);
+    }
     
     // NOTE(bSalmon): This is necessary due to some incorrect behaviour with some Controller Axis'
     SDL_GameControllerAddMappingsFromFile("../gamecontrollerdb.txt");
@@ -564,47 +596,10 @@ s32 main(s32 argc, char *argv[])
             
             SDLPL_ResizePixelBuffer(window, renderer, &globalBackBuffer);
             
-            // Networking
-            u16 port = 1842;
-            UDPsocket udpSock = SDLNet_UDP_Open(0);
-            if (!udpSock)
-            {
-                printf("SDLNet_UDP_Open Failed: %s\n", SDLNet_GetError());
-            }
-            
+            // Set up Socket
+            UDPsocket udpSock;
             IPaddress address;
-            s32 hostFound = SDLNet_ResolveHost(&address, "localhost", port);
-            if (hostFound == -1)
-            {
-                printf("Failed to Resolve Host: %s\n", SDLNet_GetError());
-            }
-            else
-            {
-                u8 ip1 = (address.host >> 24) & 0xFF;
-                u8 ip2 = (address.host >> 16) & 0xFF;
-                u8 ip3 = (address.host >> 8) & 0xFF;
-                u8 ip4 = address.host & 0xFF;
-                u16 ipPort = address.port;
-                printf("Resolved Host at IP Address: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
-            }
-            
-            UDPpacket *packet;
-            packet = SDLNet_AllocPacket(512);
-            
-            packet->data = (u8 *)"Hello World\n";
-            packet->address.host = address.host;
-            packet->address.port = address.port;
-            packet->len = (s32)strlen((char *)packet->data) + 1;
-            
-            s32 sent = 0;
-            sent = SDLNet_UDP_Send(udpSock, -1, packet);
-            if (sent == 0)
-            {
-                printf("Packet Send Failed: %s\n", SDLNet_GetError());
-            }
-            printf("Packet Sent containing: %s\n", (char *)packet->data);
-            
-            SDLNet_FreePacket(packet);
+            SDLPL_InitNetworkSocket(&udpSock, &address, "localhost");
             
             // NOTE(bSalmon): SDL_CONTROLLERDEVICEADDED is called at the start of the program so it is not required to call SDLPL_OpenControllers before the main loop
             SDL_GameController *sdlControllers[MAX_CONTROLLERS] = {0, 0};
@@ -804,10 +799,54 @@ s32 main(s32 argc, char *argv[])
                             SDLPL_PlaybackInput(&state, newInput);
                         }
 #endif
+                        Game_NetworkPacket gamePacket = {};
+                        if (multiplayer)
+                        {
+                            // Send Packet to Server
+                            SDLPL_OutgoingNetworkPacket outPlatformPacket = {};
+                            SDLPL_PackOutgoingPacket(&outPlatformPacket, newInput);
+                            
+                            UDPpacket *outPacket;
+                            outPacket = SDLNet_AllocPacket(outPlatformPacket.dataSize);
+                            
+                            outPacket->data = outPlatformPacket.data;
+                            outPacket->address.host = address.host;
+                            outPacket->address.port = address.port;
+                            outPacket->len = outPlatformPacket.dataSize;
+                            
+                            if (SDLNet_UDP_Send(udpSock, -1, outPacket))
+                            {
+                                printf("Packet Sent containing: %s\n", (char *)outPacket->data);
+                            }
+                            
+                            SDLNet_FreePacket(outPacket);
+                            
+                            // Receive Packet from Server
+                            UDPpacket *inPacket;
+                            inPacket = SDLNet_AllocPacket(INCOMING_PACKET_SIZE);
+                            if(SDLNet_UDP_Recv(udpSock, inPacket))
+                            {
+                                printf("\nUDP Packet incoming\n");
+                                printf("\tChannel:  %d\n", inPacket->channel);
+                                printf("\tData:  %s\n", (char *)inPacket->data);
+                                printf("\tLen:  %d\n", inPacket->len);
+                                printf("\tMaxlen:  %d\n", inPacket->maxlen);
+                                printf("\tStatus:  %d\n", inPacket->status);
+                                
+                                char *ip = SDLPL_UnpackIPAddress(&inPacket->address);
+                                printf("\tAddress: %s\n", ip);
+                            }
+                            else
+                            {
+                                gamePacket = {};
+                            }
+                            
+                            memcpy(inPacket->data, &gamePacket.data[0], INCOMING_PACKET_SIZE);
+                        }
                         
                         if (gameCode.UpdateRender)
                         {
-                            gameCode.UpdateRender(&gameBackBuffer, newInput, &gameMem);
+                            gameCode.UpdateRender(&gameBackBuffer, newInput, &gameMem, multiplayer, &gamePacket);
                         }
                         
                         u64 audioWallClock = SDL_GetPerformanceCounter();

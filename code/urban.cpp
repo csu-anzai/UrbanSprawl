@@ -58,14 +58,14 @@ internal_func InterpretedNetworkData InterpretNetworkData(Game_NetworkPacket *ne
     
     s32 index = 0;
     
-    memcpy(&networkPacket->data[index], &result.xOffset, sizeof(networkPacket->data[index]));
-    index += sizeof(networkPacket->data[index]);
+    memcpy(&result.xOffset, &networkPacket->data[index], sizeof(result.xOffset));
+    index += sizeof(result.xOffset);
     
-    memcpy(&networkPacket->data[index], &result.yOffset, sizeof(networkPacket->data[index]));
-    index += sizeof(networkPacket->data[index]);
+    memcpy(&result.yOffset, &networkPacket->data[index], sizeof(result.yOffset));
+    index += sizeof(result.yOffset);
     
-    memcpy(&networkPacket->data[index], &result.toneHz, sizeof(networkPacket->data[index]));
-    index += sizeof(networkPacket->data[index]);
+    memcpy(&result.toneHz, &networkPacket->data[index], sizeof(result.toneHz));
+    index += sizeof(result.toneHz);
     
     printf("\n\nxOffset: %d\n", result.xOffset);
     printf("yOffset: %d\n", result.yOffset);
@@ -89,8 +89,8 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
     {
         InterpretedNetworkData networkData = {};
         networkData = InterpretNetworkData(networkPacket);
-        gameState->xOffset = networkData.xOffset;
-        gameState->yOffset = networkData.yOffset;
+        gameState->xOffset += networkData.xOffset;
+        gameState->yOffset += networkData.yOffset;
         gameState->toneHz = networkData.toneHz;
         
         if (gameState->toneHz == 0)

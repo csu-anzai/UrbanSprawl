@@ -356,8 +356,12 @@ internal_func void SDLPL_InitNetworkSocket(UDPsocket *udpSock, IPaddress *addres
     }
     else
     {
-        char *ip = SDLPL_UnpackIPAddress(address);
-        printf("Resolved Host at IP Address: %s\n", ip);
+        u8 ip1 = (address->host >> 24) & 0xFF;
+        u8 ip2 = (address->host >> 16) & 0xFF;
+        u8 ip3 = (address->host >> 8) & 0xFF;
+        u8 ip4 = address->host & 0xFF;
+        u16 ipPort = address->port;
+        printf("Resolved Host at IP Address: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
     }
 }
 
@@ -833,15 +837,19 @@ s32 main(s32 argc, char *argv[])
                                 printf("\tMaxlen:  %d\n", inPacket->maxlen);
                                 printf("\tStatus:  %d\n", inPacket->status);
                                 
-                                char *ip = SDLPL_UnpackIPAddress(&inPacket->address);
-                                printf("\tAddress: %s\n", ip);
+                                u8 ip1 = (inPacket->address.host >> 24) & 0xFF;
+                                u8 ip2 = (inPacket->address.host >> 16) & 0xFF;
+                                u8 ip3 = (inPacket->address.host >> 8) & 0xFF;
+                                u8 ip4 = inPacket->address.host & 0xFF;
+                                u16 ipPort = inPacket->address.port;
+                                printf("\tAddress: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
                             }
                             else
                             {
                                 gamePacket = {};
                             }
                             
-                            memcpy(inPacket->data, &gamePacket.data[0], INCOMING_PACKET_SIZE);
+                            memcpy(&gamePacket.data[0], inPacket->data, inPacket->len);
                         }
                         
                         if (gameCode.UpdateRender)

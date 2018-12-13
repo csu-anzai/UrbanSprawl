@@ -14,11 +14,18 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #define OUTGOING_PACKET_SIZE 128
 
+internal_func f32 SDLPL_GetSecondsElapsed(u64 old, u64 curr)
+{
+    f32 result = 0.0f;
+    result = ((f32)(curr - old) / (f32)SDL_GetPerformanceFrequency());
+    return result;
+}
+
 s32 main(s32 argc, char *argv[])
 {
+    b32 running = true;
     u16 port = 1842;
     UDPsocket udpSock;
-    
     
     u32 sdlInitFlags = (SDL_INIT_VIDEO |
                         SDL_INIT_GAMECONTROLLER |
@@ -35,6 +42,8 @@ s32 main(s32 argc, char *argv[])
         return 2;
     }
     
+    u64 perfCountFreq = SDL_GetPerformanceFrequency();
+    
     udpSock = SDLNet_UDP_Open(port);
     if (!udpSock)
     {
@@ -47,7 +56,12 @@ s32 main(s32 argc, char *argv[])
         printf("UDP Socket Opened at Port: %d\n", port);
     }
     
-    while (true)
+    // NOTE(bSalmon): 60Hz tick rate
+    s32 serverTickRate = 60;
+    f32 targetTickRate = 1.0f / (f32)serverTickRate;
+    
+    u64 lastCounter = SDL_GetPerformanceCounter();
+    while (running)
     {
         UDPpacket *inPacket;
         inPacket = SDLNet_AllocPacket(512);
@@ -62,71 +76,72 @@ s32 main(s32 argc, char *argv[])
             printf("\tChannel:  %d\n", inPacket->channel);
             printf("\tLen:  %d\n", inPacket->len);
             printf("\tMaxlen:  %d\n", inPacket->maxlen);
-            printf("\tAddress: %x:%x\n", inPacket->address.host, inPacket->address.port);
+            u8 ip1 = (inPacket->address.host >> 24) & 0xFF;
+            u8 ip2 = (inPacket->address.host >> 16) & 0xFF;
+            u8 ip3 = (inPacket->address.host >> 8) & 0xFF;
+            u8 ip4 = inPacket->address.host & 0xFF;
+            u16 ipPort = inPacket->address.port;
+            printf("\tAddress: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
             
             printf("Processing Input...\n");
             
             Game_Input *input = (Game_Input *)inPacket->data;
-            u8 dataInput[OUTGOING_PACKET_SIZE];
             
-            local_persist s32 xOffset = 0;
-            local_persist s32 yOffset = 0;
-            local_persist s32 toneHz = 0;
+            s32 index = 0;
+            s32 xOffset = 0;
+            s32 yOffset = 0;
+            s32 toneHz = 0;
+            
+            u8 dataInput[16];
             
             for (s32 controllerIndex = 0; controllerIndex < ARRAY_COUNT(input->controllers); ++controllerIndex)
             {
+                // TODO(bSalmon): This might mean the keyboard input probably won't work for the moment
+                index = 0;
+                xOffset = 0;
+                yOffset = 0;
+                toneHz = 0;
+                
                 Game_Controller *controller = GetGameController(input, controllerIndex);
                 if (controller->isAnalog)
                 {
-                    s32 index = 0;
-                    
-                    xOffset += (s32)(4.0f * controller->lAverageX);
-                    yOffset -= (s32)(4.0f * controller->lAverageY);
+                    xOffset = (s32)(4.0f * controller->lAverageX);
+                    yOffset = -(s32)(4.0f * controller->lAverageY);
                     toneHz = 256 + (s32)(128.0f * (controller->rAverageY));
-                    
-                    memcpy(&xOffset, &dataInput[index], sizeof(xOffset));
-                    index += sizeof(xOffset);
-                    
-                    memcpy(&yOffset, &dataInput[index], sizeof(yOffset));
-                    index += sizeof(yOffset);
-                    
-                    memcpy(&toneHz, &dataInput[index], sizeof(toneHz));
-                    index += sizeof(toneHz);
                 }
                 else
                 {
                     if (controller->dPadLeft.endedDown)
                     {
-                        xOffset -= 4;
-                        
-                        memcpy(&xOffset, &dataInput[0], sizeof(xOffset));
+                        xOffset = -4;
                     }
                     if (controller->dPadRight.endedDown)
                     {
-                        xOffset += 4;
-                        
-                        memcpy(&xOffset, &dataInput[0], sizeof(xOffset));
+                        xOffset = 4;
                     }
                     if (controller->dPadUp.endedDown)
                     {
-                        yOffset -= 4;
-                        
-                        memcpy(&yOffset, &dataInput[4], sizeof(yOffset));
+                        yOffset = -4;
                     }
                     if (controller->dPadDown.endedDown)
                     {
-                        yOffset += 4;
-                        
-                        memcpy(&yOffset, &dataInput[4], sizeof(yOffset));
+                        yOffset = 4;
                     }
                 }
                 
                 if (controller->faceDown.endedDown)
                 {
                     toneHz = 5;
-                    
-                    memcpy(&toneHz, &dataInput[8], sizeof(toneHz));
                 }
+                
+                memcpy(&dataInput[index], &xOffset, sizeof(xOffset));
+                index += sizeof(xOffset);
+                
+                memcpy(&dataInput[index], &yOffset, sizeof(yOffset));
+                index += sizeof(yOffset);
+                
+                memcpy(&dataInput[index], &toneHz, sizeof(toneHz));
+                index += sizeof(toneHz);
             }
             printf("Input Processing Done.\n");
             
@@ -134,7 +149,7 @@ s32 main(s32 argc, char *argv[])
             UDPpacket *outPacket;
             outPacket = SDLNet_AllocPacket(OUTGOING_PACKET_SIZE);
             
-            outPacket->data = dataInput;
+            memcpy(outPacket->data, &dataInput, sizeof(dataInput));
             outPacket->address.host = inPacket->address.host;
             outPacket->address.port = inPacket->address.port;
             outPacket->len = 12;
@@ -148,6 +163,27 @@ s32 main(s32 argc, char *argv[])
         }
         
         SDLNet_FreePacket(inPacket);
+        
+        if (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
+        {
+            s32 sleepTime = (s32)((targetTickRate - SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter())) * 1000) - 1;
+            if (sleepTime > 0)
+            {
+                SDL_Delay(sleepTime);
+            }
+            else
+            {
+                printf("MISSED TICK RATE\n\n");
+            }
+            
+            while (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
+            {
+                // Spin
+            }
+        }
+        
+        u64 endCounter = SDL_GetPerformanceCounter();
+        lastCounter = endCounter;
     }
     
     SDLNet_Quit();

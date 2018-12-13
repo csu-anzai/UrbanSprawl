@@ -111,19 +111,5 @@ inline SDLPL_WindowDimensions SDLPL_GetWindowDimensions(SDL_Window *window)
 	return result;
 }
 
-inline char *SDLPL_UnpackIPAddress(IPaddress *address)
-{
-    char *result = 0;
-    
-    u8 ip1 = (address->host >> 24) & 0xFF;
-    u8 ip2 = (address->host >> 16) & 0xFF;
-    u8 ip3 = (address->host >> 8) & 0xFF;
-    u8 ip4 = address->host & 0xFF;
-    u16 ipPort = address->port;
-    sprintf_s(result, sizeof(result), "%d.%d.%d.%d:%d", ip4, ip3, ip2, ip1, ipPort);
-    
-    return result;
-}
-
 #define SDL_URBAN_H
 #endif // SDL_URBAN_H

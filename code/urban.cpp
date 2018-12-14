@@ -8,7 +8,6 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #include "urban.h"
 
 #include <stdio.h>
-#include <cstring>
 
 internal_func void Game_RenderTestPixels(Game_BackBuffer *backBuffer, s32 xOffset, s32 yOffset)
 {
@@ -58,14 +57,9 @@ internal_func InterpretedNetworkData InterpretNetworkData(Game_NetworkPacket *ne
     
     s32 index = 0;
     
-    memcpy(&result.xOffset, &networkPacket->data[index], sizeof(result.xOffset));
-    index += sizeof(result.xOffset);
-    
-    memcpy(&result.yOffset, &networkPacket->data[index], sizeof(result.yOffset));
-    index += sizeof(result.yOffset);
-    
-    memcpy(&result.toneHz, &networkPacket->data[index], sizeof(result.toneHz));
-    index += sizeof(result.toneHz);
+    FillVariableFromDataBlock(&result.xOffset, &networkPacket->data[index], &index);
+    FillVariableFromDataBlock(&result.yOffset, &networkPacket->data[index], &index);
+    FillVariableFromDataBlock(&result.toneHz, &networkPacket->data[index], &index);
     
     printf("\n\nxOffset: %d\n", result.xOffset);
     printf("yOffset: %d\n", result.yOffset);

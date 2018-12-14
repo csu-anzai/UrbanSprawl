@@ -170,8 +170,8 @@ internal_func void SDLPL_AudioCallback(void *userData, u8 *audioData, s32 length
         region2Size = length  - region1Size;
     }
     
-    memcpy(audioData, (u8 *)ringBuffer->data + ringBuffer->playCursor, region1Size);
-    memcpy(&audioData[region1Size], ringBuffer->data, region2Size);
+    CopyMem(audioData, (u8 *)ringBuffer->data + ringBuffer->playCursor, region1Size);
+    CopyMem(&audioData[region1Size], ringBuffer->data, region2Size);
     ringBuffer->playCursor = (ringBuffer->playCursor + length) % ringBuffer->size;
     ringBuffer->writeCursor = (ringBuffer->playCursor + length) % ringBuffer->size;
 }
@@ -356,12 +356,10 @@ internal_func void SDLPL_InitNetworkSocket(UDPsocket *udpSock, IPaddress *addres
     }
     else
     {
-        u8 ip1 = (address->host >> 24) & 0xFF;
-        u8 ip2 = (address->host >> 16) & 0xFF;
-        u8 ip3 = (address->host >> 8) & 0xFF;
-        u8 ip4 = address->host & 0xFF;
-        u16 ipPort = address->port;
-        printf("Resolved Host at IP Address: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
+        
+        char *constructedAddress = ConstructIPString(address->host, address->port);
+        printf("Resolved Host at IP Address: %s\n", constructedAddress);
+        
     }
 }
 
@@ -491,30 +489,6 @@ internal_func void SDLPL_HandleEvent(SDL_Event *event, SDL_GameController **cont
                             *pause = !*pause;
                         }
                     }
-#if URBAN_WIN32
-                    if (keycode == SDLK_l)
-                    {
-                        if (isDown)
-                        {
-                            if (state->inputPlaybackIndex == 0)
-                            {
-                                if (state->inputRecordingIndex == 0)
-                                {
-                                    SDLPL_BeginRecordingInput(state, 1);
-                                }
-                                else
-                                {
-                                    SDLPL_EndRecordingInput(state);
-                                    SDLPL_BeginInputPlayback(state, 1);
-                                }
-                            }
-                            else
-                            {
-                                SDLPL_EndInputPlayback(state);
-                            }
-                        }
-                    }
-#endif
 #endif
                 }
             }
@@ -641,21 +615,6 @@ s32 main(s32 argc, char *argv[])
             state.gameMemBlock = VirtualAlloc(baseAddress, (mem_index)state.totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
             gameMem.permanentStorage = state.gameMemBlock;
             gameMem.transientStorage = (u8 *)gameMem.permanentStorage + gameMem.permanentStorageSize;
-            
-#if URBAN_WIN32
-            for (s32 replayIndex = 0; replayIndex < ARRAY_COUNT(state.replayBuffers); ++replayIndex)
-            {
-                SDLPL_ReplayBuffer *currBuffer = &state.replayBuffers[replayIndex];
-                
-                char filepath[SDL_STATE_FILE_PATH_MAX];
-                SDLPL_GetInputFileLocation(&state, false, replayIndex, sizeof(filepath), filepath);
-                currBuffer->fileHandle = CreateFileA(currBuffer->replayFilename, GENERIC_WRITE | GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
-                
-                currBuffer->memoryMap = CreateFileMapping(currBuffer->fileHandle, 0, PAGE_READWRITE, (state.totalSize >> 32), (state.totalSize & 0xFFFFFFFF), 0);
-                
-                currBuffer->memBlock = MapViewOfFile(currBuffer->memoryMap, FILE_MAP_ALL_ACCESS, 0, 0, state.totalSize);
-            }
-#endif
             
             if (samples && gameMem.permanentStorage && gameMem.transientStorage)
             {
@@ -792,17 +751,6 @@ s32 main(s32 argc, char *argv[])
                         gameBackBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
                         gameBackBuffer.pitch = globalBackBuffer.pitch;
                         
-#if URBAN_WIN32
-                        if (state.inputRecordingIndex)
-                        {
-                            SDLPL_RecordInput(&state, newInput);
-                        }
-                        
-                        if (state.inputPlaybackIndex)
-                        {
-                            SDLPL_PlaybackInput(&state, newInput);
-                        }
-#endif
                         Game_NetworkPacket gamePacket = {};
                         if (multiplayer)
                         {
@@ -832,24 +780,21 @@ s32 main(s32 argc, char *argv[])
                             {
                                 printf("\nUDP Packet incoming\n");
                                 printf("\tChannel:  %d\n", inPacket->channel);
-                                printf("\tData:  %s\n", (char *)inPacket->data);
+                                printf("\tData:  %s\n", (u8 *)inPacket->data);
                                 printf("\tLen:  %d\n", inPacket->len);
                                 printf("\tMaxlen:  %d\n", inPacket->maxlen);
                                 printf("\tStatus:  %d\n", inPacket->status);
                                 
-                                u8 ip1 = (inPacket->address.host >> 24) & 0xFF;
-                                u8 ip2 = (inPacket->address.host >> 16) & 0xFF;
-                                u8 ip3 = (inPacket->address.host >> 8) & 0xFF;
-                                u8 ip4 = inPacket->address.host & 0xFF;
-                                u16 ipPort = inPacket->address.port;
-                                printf("\tAddress: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
+                                char *constructedAddress = ConstructIPString(inPacket->address.host, inPacket->address.port);
+                                printf("\tAddress: %s\n", constructedAddress);
+                                
                             }
                             else
                             {
                                 gamePacket = {};
                             }
                             
-                            memcpy(&gamePacket.data[0], inPacket->data, inPacket->len);
+                            CopyMem(&gamePacket.data[0], inPacket->data, inPacket->len);
                         }
                         
                         if (gameCode.UpdateRender)

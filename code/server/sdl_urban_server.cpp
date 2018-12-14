@@ -1,6 +1,6 @@
 /*
 Project: Urban Sprawl
-File: sdl_urban.cpp
+File: sdl_urban_server.cpp
 Author: Brock Salmon
 Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 */
@@ -10,11 +10,10 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #include "../urban.h"
 #include <stdio.h>
-#include <cstring>
 
 #define OUTGOING_PACKET_SIZE 128
 
-internal_func f32 SDLPL_GetSecondsElapsed(u64 old, u64 curr)
+internal_func f32 SDLS_GetSecondsElapsed(u64 old, u64 curr)
 {
     f32 result = 0.0f;
     result = ((f32)(curr - old) / (f32)SDL_GetPerformanceFrequency());
@@ -76,12 +75,9 @@ s32 main(s32 argc, char *argv[])
             printf("\tChannel:  %d\n", inPacket->channel);
             printf("\tLen:  %d\n", inPacket->len);
             printf("\tMaxlen:  %d\n", inPacket->maxlen);
-            u8 ip1 = (inPacket->address.host >> 24) & 0xFF;
-            u8 ip2 = (inPacket->address.host >> 16) & 0xFF;
-            u8 ip3 = (inPacket->address.host >> 8) & 0xFF;
-            u8 ip4 = inPacket->address.host & 0xFF;
-            u16 ipPort = inPacket->address.port;
-            printf("\tAddress: %d.%d.%d.%d:%d\n", ip4, ip3, ip2, ip1, ipPort);
+            
+            char *constructedAddress = ConstructIPString(inPacket->address.host, inPacket->address.port);
+            printf("\tAddress: %s\n", constructedAddress);
             
             printf("Processing Input...\n");
             
@@ -96,7 +92,6 @@ s32 main(s32 argc, char *argv[])
             
             for (s32 controllerIndex = 0; controllerIndex < ARRAY_COUNT(input->controllers); ++controllerIndex)
             {
-                // TODO(bSalmon): This might mean the keyboard input probably won't work for the moment
                 index = 0;
                 xOffset = 0;
                 yOffset = 0;
@@ -129,19 +124,16 @@ s32 main(s32 argc, char *argv[])
                     }
                 }
                 
-                if (controller->faceDown.endedDown)
+                U8DataBlockFill<s32>(&dataInput[index], &xOffset, &index);
+                U8DataBlockFill<s32>(&dataInput[index], &yOffset, &index);
+                U8DataBlockFill<s32>(&dataInput[index], &toneHz, &index);
+                
+                // NOTE(bSalmon): If Input is received from the keyboard
+                // break so the controller doesn't overwrite it
+                if ((xOffset != 0 || yOffset != 0) && toneHz == 0)
                 {
-                    toneHz = 5;
+                    break;
                 }
-                
-                memcpy(&dataInput[index], &xOffset, sizeof(xOffset));
-                index += sizeof(xOffset);
-                
-                memcpy(&dataInput[index], &yOffset, sizeof(yOffset));
-                index += sizeof(yOffset);
-                
-                memcpy(&dataInput[index], &toneHz, sizeof(toneHz));
-                index += sizeof(toneHz);
             }
             printf("Input Processing Done.\n");
             
@@ -149,14 +141,14 @@ s32 main(s32 argc, char *argv[])
             UDPpacket *outPacket;
             outPacket = SDLNet_AllocPacket(OUTGOING_PACKET_SIZE);
             
-            memcpy(outPacket->data, &dataInput, sizeof(dataInput));
+            CopyMem(outPacket->data, &dataInput, sizeof(dataInput));
             outPacket->address.host = inPacket->address.host;
             outPacket->address.port = inPacket->address.port;
             outPacket->len = 12;
             
             if (SDLNet_UDP_Send(udpSock, -1, outPacket))
             {
-                printf("Packet Sent containing: %s\n", (char *)outPacket->data);
+                printf("Packet Sent containing: %s\n", (u8 *)outPacket->data);
             }
             
             SDLNet_FreePacket(outPacket);
@@ -164,9 +156,9 @@ s32 main(s32 argc, char *argv[])
         
         SDLNet_FreePacket(inPacket);
         
-        if (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
+        if (SDLS_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
         {
-            s32 sleepTime = (s32)((targetTickRate - SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter())) * 1000) - 1;
+            s32 sleepTime = (s32)((targetTickRate - SDLS_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter())) * 1000) - 1;
             if (sleepTime > 0)
             {
                 SDL_Delay(sleepTime);
@@ -176,7 +168,7 @@ s32 main(s32 argc, char *argv[])
                 printf("MISSED TICK RATE\n\n");
             }
             
-            while (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
+            while (SDLS_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
             {
                 // Spin
             }

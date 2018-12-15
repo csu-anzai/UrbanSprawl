@@ -12,7 +12,7 @@ the Game's Update and Render loop is able to be built on top of it
 
 // TODO(bSalmon): Replace VirtualAllocs/Frees with custom mmap, malloc, free
 // TODO(bSalmon): Hardware Acceleration
-// TODO(bSalmon): Fullscreen
+// TODO(bSalmon): Fullscreen on Multimonitor setups
 // TODO(bSalmon): Remove Debug Platform File Functions when viable
 
 // NOTE(bSalmon): SIGNIFICANT PORTIONS OF THE PLATFORM LAYER ARE CURRENTLY ONLY AVAILABLE TO WINDOWS MACHINES
@@ -243,6 +243,7 @@ internal_func void SDLPL_FillAudioBuffer(SDLPL_AudioOutput *audioOutput, SDLPL_A
     }
 }
 
+/*
 #if URBAN_INTERNAL
 internal_func void SDLPL_DebugDrawVerticalLine(s32 x, s32 top, s32 bottom, u32 colour)
 {
@@ -280,6 +281,7 @@ internal_func void SDLPL_DebugDrawAudioSyncDisplay(SDLPL_DebugTimeMarker *marker
     }
 }
 #endif
+*/
 
 internal_func void SDLPL_ProcessControllerButtons(Game_ButtonState *oldState, Game_ButtonState *newState, b32 buttonValue)
 {
@@ -317,6 +319,20 @@ internal_func f32 SDLPL_GetSecondsElapsed(u64 old, u64 curr)
     f32 result = 0.0f;
     result = ((f32)(curr - old) / (f32)SDL_GetPerformanceFrequency());
     return result;
+}
+
+// TODO(bSalmon): Fix this for multimonitor setups
+internal_func void SDLPL_ToggleFullscreen(SDL_Window *window)
+{
+    u32 flags = SDL_GetWindowFlags(window);
+    if (flags & SDL_WINDOW_FULLSCREEN_DESKTOP)
+    {
+        SDL_SetWindowFullscreen(window, 0);
+    }
+    else
+    {
+        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
 }
 
 internal_func void SDLPL_HandleWindowEvent(SDL_Event *event)
@@ -398,110 +414,119 @@ internal_func void SDLPL_HandleEvent(SDL_Event *event, SDL_GameController **cont
         case SDL_KEYUP:
         {
             SDL_Keycode keycode = event->key.keysym.sym;
+            
+            b32 altKeyWasDown = (event->key.keysym.mod & KMOD_ALT);
+            b32 shiftKeyWasDown = (event->key.keysym.mod & KMOD_SHIFT);
             b32 isDown = (event->key.state == SDL_PRESSED);
-            b32 wasDown = false;
-            if (event->key.state == SDL_RELEASED)
-            {
-                wasDown = true;
-            }
-            else if (event->key.repeat != 0)
-            {
-                wasDown = true;
-            }
             
             if (event->key.repeat == 0)
             {
-                if (wasDown != isDown)
+                if (keycode == SDLK_w)
                 {
-                    if (keycode == SDLK_w)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->lStickUp, isDown);
-                    }
-                    if (keycode == SDLK_s)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->lStickDown, isDown);
-                    }
-                    if (keycode == SDLK_a)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->lStickLeft, isDown);
-                    }
-                    if (keycode == SDLK_d)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->lStickRight, isDown);
-                    }
-                    if (keycode == SDLK_UP)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->dPadUp, isDown);
-                    }
-                    if (keycode == SDLK_DOWN)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->dPadDown, isDown);
-                    }
-                    if (keycode == SDLK_LEFT)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->dPadLeft, isDown);
-                    }
-                    if (keycode == SDLK_RIGHT)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->dPadRight, isDown);
-                    }
-                    if (keycode == SDLK_SPACE)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->faceDown, isDown);
-                    }
-                    if (keycode == SDLK_LSHIFT)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->faceRight, isDown);
-                    }
-                    if (keycode == SDLK_f)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->faceLeft, isDown);
-                    }
-                    if (keycode == SDLK_TAB)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->faceUp, isDown);
-                    }
-                    if (keycode == SDLK_q)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->lShoulder, isDown);
-                    }
-                    if (keycode == SDLK_e)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->rShoulder, isDown);
-                    }
-                    if (keycode == SDLK_BACKSPACE)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->back, isDown);
-                    }
-                    if (keycode == SDLK_ESCAPE)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->start, isDown);
-                    }
-                    if (keycode == SDLK_RETURN)
-                    {
-                        SDLPL_ProcessKeyPress(&keyboardController->console, isDown);
-                    }
+                    SDLPL_ProcessKeyPress(&keyboardController->lStickUp, isDown);
+                }
+                if (keycode == SDLK_s)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->lStickDown, isDown);
+                }
+                if (keycode == SDLK_a)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->lStickLeft, isDown);
+                }
+                if (keycode == SDLK_d)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->lStickRight, isDown);
+                }
+                if (keycode == SDLK_UP)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->dPadUp, isDown);
+                }
+                if (keycode == SDLK_DOWN)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->dPadDown, isDown);
+                }
+                if (keycode == SDLK_LEFT)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->dPadLeft, isDown);
+                }
+                if (keycode == SDLK_RIGHT)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->dPadRight, isDown);
+                }
+                if (keycode == SDLK_SPACE)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->faceDown, isDown);
+                }
+                if (keycode == SDLK_LSHIFT)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->faceRight, isDown);
+                }
+                if (keycode == SDLK_f)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->faceLeft, isDown);
+                }
+                if (keycode == SDLK_TAB)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->faceUp, isDown);
+                }
+                if (keycode == SDLK_q)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->lShoulder, isDown);
+                }
+                if (keycode == SDLK_e)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->rShoulder, isDown);
+                }
+                if (keycode == SDLK_BACKSPACE)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->back, isDown);
+                }
+                if (keycode == SDLK_ESCAPE)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->start, isDown);
+                }
+                if (keycode == SDLK_RETURN)
+                {
+                    SDLPL_ProcessKeyPress(&keyboardController->console, isDown);
+                }
 #if URBAN_INTERNAL
-                    if (keycode == SDLK_p)
+                if (keycode == SDLK_p)
+                {
+                    if (isDown)
                     {
-                        if (isDown)
+                        *pause = !*pause;
+                    }
+                }
+#endif
+                if (isDown)
+                {
+                    if (keycode == SDLK_F4 && altKeyWasDown)
+                    {
+                        *running = false;
+                    }
+                    else if (keycode == SDLK_RETURN && altKeyWasDown)
+                    {
+                        SDL_Window *window = SDL_GetWindowFromID(event->window.windowID);
+                        if (window)
                         {
-                            *pause = !*pause;
+                            SDLPL_ToggleFullscreen(window);
                         }
                     }
-#endif
                 }
             }
             
             break;
         }
         
+        
         default:
         {
             break;
         }
     }
+    
 }
+
 
 s32 main(s32 argc, char *argv[])
 {
@@ -667,6 +692,25 @@ s32 main(s32 argc, char *argv[])
                     
                     if (!pause)
                     {
+                        SDL_Point mouseLoc = {};
+                        u32 mouseMask = SDL_GetMouseState(&mouseLoc.x, &mouseLoc.y);
+                        newInput->mouseX = mouseLoc.x;
+                        newInput->mouseY = mouseLoc.y;
+                        
+                        u32 SDLPL_ButtonID[3] =
+                        {
+                            SDL_BUTTON_LMASK,
+                            SDL_BUTTON_MMASK,
+                            SDL_BUTTON_RMASK
+                        };
+                        
+                        for (u32 buttonIndex = 0; buttonIndex < 3; ++buttonIndex)
+                        {
+                            newInput->mouseButtons[buttonIndex] = oldInput->mouseButtons[buttonIndex];
+                            newInput->mouseButtons[buttonIndex].halfTransitionCount = 0;
+                            SDLPL_ProcessKeyPress(&newInput->mouseButtons[buttonIndex], mouseMask & SDLPL_ButtonID[buttonIndex]);
+                        }
+                        
                         // NOTE(bSalmon): Controller Index set to 1 to avoid overwrite of Keyboard
                         for (s32 controllerIndex = 1; controllerIndex < MAX_CONTROLLERS; ++controllerIndex)
                         {
@@ -886,13 +930,15 @@ s32 main(s32 argc, char *argv[])
                         }
                         
                         u64 endCounter = SDL_GetPerformanceCounter();
-                        
+                        /*
 #if URBAN_INTERNAL
                         SDLPL_DebugDrawAudioSyncDisplay(debugTimeMarkers, &audioOutput, ARRAY_COUNT(debugTimeMarkers), targetSecondsPerFrame);
 #endif
+                        */
                         
                         SDLPL_PresentBuffer(window, renderer, &globalBackBuffer);
                         
+                        /*
 #if URBAN_INTERNAL
                         SDLPL_DebugTimeMarker *marker = &debugTimeMarkers[debugTimeMarkerIndex++];
                         if (debugTimeMarkerIndex > ARRAY_COUNT(debugTimeMarkers))
@@ -903,6 +949,7 @@ s32 main(s32 argc, char *argv[])
                         marker->playCursor = audioRingBuffer.playCursor;
                         marker->writeCursor = audioRingBuffer.writeCursor;
 #endif
+                        */
                         
                         u64 endCycleCount = __rdtsc();
                         u64 counterElapsed = endCounter - lastCounter;

@@ -15,7 +15,7 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #include <stdio.h>
 
-#define SDL_STATE_FILE_PATH_MAX 4096
+#define SDL_STATE_FILE_PATH_MAX 0x104
 
 struct SDLPL_BackBuffer
 {
@@ -75,14 +75,6 @@ struct SDLPL_GameCode
     
     b32 isValid;
 };
-
-struct SDLPL_ReplayBuffer
-{
-    HANDLE fileHandle;
-    HANDLE memoryMap;
-    char replayFilename[SDL_STATE_FILE_PATH_MAX];
-    void *memBlock;
-};
 #endif
 
 struct SDLPL_State
@@ -93,14 +85,6 @@ struct SDLPL_State
 #if URBAN_WIN32
     char exeName[SDL_STATE_FILE_PATH_MAX];
     char *exeNameBegin;
-    
-    SDLPL_ReplayBuffer replayBuffers[4];
-    
-    HANDLE recordingHandle;
-    s32 inputRecordingIndex;
-    
-    HANDLE playbackHandle;
-    s32 inputPlaybackIndex;
 #endif
 };
 

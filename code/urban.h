@@ -26,6 +26,9 @@ typedef int64_t s64;
 
 typedef size_t mem_index;
 
+typedef uintptr_t umm;
+typedef intptr_t smm;
+
 typedef int32_t b32;
 typedef bool b8;
 
@@ -174,8 +177,8 @@ struct Game_Memory
 
 struct Game_State
 {
-    s32 xOffset;
-    s32 yOffset;
+    s32 playerX;
+    s32 playerY;
     s32 toneHz;
 };
 
@@ -186,8 +189,8 @@ struct Game_NetworkPacket
 
 struct InterpretedNetworkData
 {
-    s32 xOffset;
-    s32 yOffset;
+    s32 playerX;
+    s32 playerY;
     s32 toneHz;
 };
 

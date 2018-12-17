@@ -86,7 +86,6 @@ s32 main(s32 argc, char *argv[])
             s32 index = 0;
             s32 playerX = 0;
             s32 playerY = 0;
-            s32 toneHz = 0;
             
             u8 dataInput[16];
             
@@ -95,14 +94,12 @@ s32 main(s32 argc, char *argv[])
                 index = 0;
                 playerX = 0;
                 playerY = 0;
-                toneHz = 0;
                 
                 Game_Controller *controller = GetGameController(input, controllerIndex);
                 if (controller->isAnalog)
                 {
                     playerX = (s32)(4.0f * controller->lAverageX);
                     playerY = -(s32)(4.0f * controller->lAverageY);
-                    toneHz = 256 + (s32)(128.0f * (controller->rAverageY));
                 }
                 else
                 {
@@ -126,11 +123,10 @@ s32 main(s32 argc, char *argv[])
                 
                 U8DataBlockFill<s32>(&dataInput[index], &playerX, &index);
                 U8DataBlockFill<s32>(&dataInput[index], &playerY, &index);
-                U8DataBlockFill<s32>(&dataInput[index], &toneHz, &index);
                 
                 // NOTE(bSalmon): If Input is received from the keyboard
                 // break so the controller doesn't overwrite it
-                if ((playerX != 0 || playerY != 0) && toneHz == 0)
+                if ((playerX != 0 || playerY != 0))
                 {
                     break;
                 }

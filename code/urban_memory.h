@@ -33,7 +33,7 @@ inline void *SetMem(void *block, u8 value, mem_index size)
     return block;
 }
 
-// TODO(bSalmon): malloc/free
+// TODO(bSalmon): malloc/free/calloc
 
 #define URBAN_MEMORY_H
 #endif

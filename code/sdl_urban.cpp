@@ -116,6 +116,7 @@ internal_func void SDLPL_ResizePixelBuffer(SDL_Window *window, SDL_Renderer *ren
     backBuffer->width = windowDims.width;
     backBuffer->height = windowDims.height;
     backBuffer->bytesPerPixel = 4;
+    // TODO(bSalmon): Should memorySize be stored in the game struct as well?
     backBuffer->memorySizeInBytes = (backBuffer->width * backBuffer->height * backBuffer->bytesPerPixel);
     backBuffer->pitch = backBuffer->width * backBuffer->bytesPerPixel;
     
@@ -546,7 +547,7 @@ s32 main(s32 argc, char *argv[])
     }
     
     b32 multiplayer = false;
-    if (argc == 2)
+    if (argc >= 2)
     {
         multiplayer = (strcmp(argv[1], "m") == 0);
     }
@@ -600,9 +601,12 @@ s32 main(s32 argc, char *argv[])
             SDLPL_ResizePixelBuffer(window, renderer, &globalBackBuffer);
             
             // Set up Socket
-            UDPsocket udpSock;
-            IPaddress address;
-            SDLPL_InitNetworkSocket(&udpSock, &address, "localhost");
+            UDPsocket udpSock = 0;
+            IPaddress address = {};
+            if (multiplayer)
+            {
+                SDLPL_InitNetworkSocket(&udpSock, &address, argv[2]);
+            }
             
             // NOTE(bSalmon): SDL_CONTROLLERDEVICEADDED is called at the start of the program so it is not required to call SDLPL_OpenControllers before the main loop
             SDL_GameController *sdlControllers[MAX_CONTROLLERS] = {0, 0};
@@ -917,6 +921,7 @@ s32 main(s32 argc, char *argv[])
                         
                         if (SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetSecondsPerFrame)
                         {
+                            
                             s32 sleepTime = (s32)((targetSecondsPerFrame - SDLPL_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter())) * 1000) - 1;
                             if (sleepTime > 0)
                             {

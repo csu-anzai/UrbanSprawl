@@ -21,6 +21,13 @@ inline s32 RoundF32ToU32(f32 value)
     return result;
 }
 
+// TODO(bSalmon): Should SSE4.1 be used?
+inline s32 FloorF32ToS32(f32 value)
+{
+    s32 result = _mm_cvtss_si32(_mm_floor_ps(_mm_set_ss(value)));
+    return result;
+}
+
 inline s32 TruncateF32ToS32(f32 value)
 {
     s32 result = _mm_cvtt_ss2si(_mm_set_ss(value));

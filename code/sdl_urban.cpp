@@ -569,7 +569,7 @@ s32 main(s32 argc, char *argv[])
     char lockFilePath[SDL_STATE_FILE_PATH_MAX];
     SDLPL_BuildExePathFileName(&state, "lock.tmp", sizeof(lockFilePath), lockFilePath);
     
-    SDL_Window *window = SDL_CreateWindow("Urban Sprawl PoC",
+    SDL_Window *window = SDL_CreateWindow("Urban Sprawl Pre-Alpha",
                                           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                                           1280, 720, SDL_WINDOW_RESIZABLE);
     

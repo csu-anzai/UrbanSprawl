@@ -9,6 +9,8 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #include "urban_platform.h"
 #include "urban_memory.h"
+#include "urban_tile.h"
+#include "urban_intrinsics.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -32,34 +34,29 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #define PI 3.14159265359f
 
-struct Tilemap
-{
-    s32 dimX;
-    s32 dimY;
-    
-    f32 tileSide;
-    
-    u32 *tiles;
-};
-
 struct World
 {
-    s32 tilemapCountX;
-    s32 tilemapCountY;
-    
-    Tilemap *tilemaps;
+    TileMap *tileMap;
+};
+
+struct MemoryRegion
+{
+    mem_index size;
+    u8 *base;
+    mem_index used;
 };
 
 struct Game_State
 {
-    f32 playerX;
-    f32 playerY;
+    MemoryRegion worldRegion;
+    World *world;
+    
+    TileMapPosition playerPos;
 };
 
 struct InterpretedNetworkData
 {
-    f32 playerX;
-    f32 playerY;
+    TileMapPosition playerPos;
 };
 
 inline Game_Controller *GetGameController(Game_Input *input, s32 controllerIndex)

@@ -1,5 +1,5 @@
 /*
-Project: Urban Sprawl
+Project: Urban Sprawl Server
 File: sdl_urban_server.cpp
 Author: Brock Salmon
 Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.

@@ -24,3 +24,11 @@ echo.
 echo COMPILING SERVER
 cl %commonFlagsCompiler% ..\..\code\server\sdl_urban_server.cpp /link -incremental:no -opt:ref -subsystem:console ../../libs/SDL2.lib ../../libs/SDL2main.lib ../../libs/SDL2_net.lib
 popd
+
+IF NOT EXIST ..\build\map_editor mkdir ..\build\map_editor
+pushd ..\build\map_editor
+
+echo.
+echo COMPILING MAP EDITOR
+cl %commonFlagsCompiler% ..\..\code\map_editor\win32_urban_mapedit.cpp /link -incremental:no -opt:ref user32.lib gdi32.lib
+popd

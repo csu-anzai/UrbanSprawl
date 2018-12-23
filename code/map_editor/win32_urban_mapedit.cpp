@@ -8,69 +8,12 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #include <Windows.h>
 
 #include "../urban.h"
-
-struct Win32_Menus
-{
-    HMENU file;
-    HMENU settings;
-};
-
-struct Win32_BackBuffer
-{
-    // NOTE(bSalmon): 32-bit wide, Mem Order BB GG RR xx
-	BITMAPINFO info;
-	void *memory;
-	s32 width;
-	s32 height;
-	s32 pitch;
-	s32 bytesPerPixel;
-};
-
-struct Win32_MapInfo
-{
-    u32 chunkDim;
-    u32 chunkCountX;
-    u32 chunkCountY;
-    u32 tileMapDim;
-    u32 segmentDim;
-    f32 tileSize;
-    s32 segmentDimTiles;
-    
-    u32 gridLineCount;
-    u32 gridDimPixels;
-    
-    s32 gridLeft;
-    s32 gridTop;
-    
-    u32 *tileArray;
-    u32 currSegment;
-};
-
-struct Win32_Input
-{
-    POINT mouseLoc;
-};
-
-struct Win32_WindowDimensions
-{
-	s32 width;
-	s32 height;
-};
+#include "../urban_tile.cpp"
+#include "win32_urban_mapedit.h"
 
 global_var b32 globalRunning;
 global_var Win32_BackBuffer globalBackBuffer;
 
-inline Win32_WindowDimensions Win32_GetWindowDimensions(HWND window)
-{
-	Win32_WindowDimensions result;
-	
-	RECT clientRect;
-	GetClientRect(window, &clientRect);
-	result.width = clientRect.right - clientRect.left;
-	result.height = clientRect.bottom - clientRect.top;
-	
-	return result;
-}
 // Resize Device Independent Bitmap Section
 internal_func void Win32_ResizeDIBSection(Win32_BackBuffer *backBuffer, s32 width, s32 height)
 {
@@ -144,95 +87,28 @@ internal_func void Win32_InitMenus(HWND window, Win32_Menus *menus)
     SetMenu(window, menuBar);
 }
 
-inline void Win32_DrawVerticalLine(s32 x, s32 top, s32 bottom, u32 colour)
-{
-    u8 *pixel = ((u8 *)globalBackBuffer.memory + x * globalBackBuffer.bytesPerPixel + top * globalBackBuffer.pitch);
-    
-    for (s32 y = top; y < bottom; ++y)
-    {
-        *(u32 *)pixel = colour;
-        pixel += globalBackBuffer.pitch;
-    }
-}
-
-inline void Win32_DrawHorizontalLine(s32 y, s32 left, s32 right, u32 colour)
-{
-    u8 *pixel = ((u8 *)globalBackBuffer.memory + left * globalBackBuffer.bytesPerPixel + y * globalBackBuffer.pitch);
-    
-    for (s32 x = left; x < right; ++x)
-    {
-        *(u32 *)pixel = colour;
-        pixel += globalBackBuffer.bytesPerPixel;
-    }
-}
-
-internal_func void DrawRect(f32 minX, f32 minY, f32 maxX, f32 maxY, u32 colour)
-{
-    u8 *endOfBuffer = (u8 *)globalBackBuffer.memory + (globalBackBuffer.pitch * globalBackBuffer.height);
-    
-    s32 roundedMinX = RoundF32ToS32(minX);
-    s32 roundedMinY = RoundF32ToS32(minY);
-    s32 roundedMaxX = RoundF32ToS32(maxX);
-    s32 roundedMaxY = RoundF32ToS32(maxY);
-    
-    if (roundedMinX < 0)
-    {
-        roundedMinX = 0;
-    }
-    
-    if (roundedMinY < 0)
-    {
-        roundedMinY = 0;
-    }
-    
-    if (roundedMaxX > globalBackBuffer.width)
-    {
-        roundedMaxX = globalBackBuffer.width;
-    }
-    
-    if (roundedMaxY > globalBackBuffer.height)
-    {
-        roundedMaxY = globalBackBuffer.height;
-    }
-    
-    for (s32 x = roundedMinX; x < roundedMaxX; ++x)
-    {
-        u8 *pixel = (u8 *)globalBackBuffer.memory + (x * globalBackBuffer.bytesPerPixel) + (roundedMinY * globalBackBuffer.pitch);
-        
-        for (s32 y = roundedMinY; y < roundedMaxY; ++y)
-        {
-            if ((pixel >= globalBackBuffer.memory) && ((pixel + 4) <= endOfBuffer))
-            {
-                *(u32 *)pixel = colour;
-            }
-            
-            pixel += globalBackBuffer.pitch;
-        }
-    }
-}
-
-internal_func void Win32_DrawMapGrid(Win32_MapInfo *mapInfo, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 gridColour)
+internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, TileMap *tileMap, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 gridColour)
 {
     // Draw Border
-    Win32_DrawHorizontalLine(minY, minX, maxX, 0xFFFF0000);
-    Win32_DrawHorizontalLine(maxY, minX, maxX, 0xFFFF0000);
-    Win32_DrawVerticalLine(minX, minY, maxY, 0xFFFF0000);
-    Win32_DrawVerticalLine(maxX, minY, maxY, 0xFFFF0000);
+    Win32_DrawHorizontalLine(backBuffer, minY, minX, maxX, 0xFFFF0000);
+    Win32_DrawHorizontalLine(backBuffer, maxY, minX, maxX, 0xFFFF0000);
+    Win32_DrawVerticalLine(backBuffer, minX, minY, maxY, 0xFFFF0000);
+    Win32_DrawVerticalLine(backBuffer, maxX, minY, maxY, 0xFFFF0000);
     
     // Draw Grid Lines
     u32 chunkCounterX = 0;
-    for (f32 x = ((f32)minX + mapInfo->tileSize); x < maxX; x += mapInfo->tileSize)
+    for (f32 x = ((f32)minX + mapInfo->tileSide); x < maxX; x += mapInfo->tileSide)
     {
         ++chunkCounterX;
         
-        if (chunkCounterX == mapInfo->chunkDim)
+        if (chunkCounterX == tileMap->chunkDim)
         {
             gridColour = 0xFFFF0000;
         }
         
-        Win32_DrawVerticalLine((s32)x, minY, maxY, gridColour);
+        Win32_DrawVerticalLine(backBuffer, (s32)x, minY, maxY, gridColour);
         
-        if (chunkCounterX == mapInfo->chunkDim)
+        if (chunkCounterX == tileMap->chunkDim)
         {
             gridColour = 0xFFFFFFFF;
             chunkCounterX = 0;
@@ -240,18 +116,18 @@ internal_func void Win32_DrawMapGrid(Win32_MapInfo *mapInfo, s32 minX, s32 minY,
     }
     
     u32 chunkCounterY = 0;
-    for (f32 y = ((f32)minY + mapInfo->tileSize); y < maxY; y += mapInfo->tileSize)
+    for (f32 y = ((f32)minY + mapInfo->tileSide); y < maxY; y += mapInfo->tileSide)
     {
         ++chunkCounterY;
         
-        if (chunkCounterY == mapInfo->chunkDim)
+        if (chunkCounterY == tileMap->chunkDim)
         {
             gridColour = 0xFFFF0000;
         }
         
-        Win32_DrawHorizontalLine((s32)y, minX, maxX, gridColour);
+        Win32_DrawHorizontalLine(backBuffer, (s32)y, minX, maxX, gridColour);
         
-        if (chunkCounterY == mapInfo->chunkDim)
+        if (chunkCounterY == tileMap->chunkDim)
         {
             gridColour = 0xFFFFFFFF;
             chunkCounterY = 0;
@@ -259,16 +135,42 @@ internal_func void Win32_DrawMapGrid(Win32_MapInfo *mapInfo, s32 minX, s32 minY,
     }
 }
 
-internal_func void Win32_DrawTiles(Win32_MapInfo *mapInfo)
+internal_func void Win32_UpdateRenderEditorMap(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, TileMap *tileMap, Win32_Input *input)
 {
-    u32 segmentDim = mapInfo->chunkDim * 4;
-    u32 gridDim = mapInfo->chunkDim * mapInfo->chunkCountX;
+    u32 beginningOfSegmentX = mapInfo->currSegmentX * mapInfo->segmentDimTiles;
+    u32 beginningOfSegmentY = mapInfo->currSegmentY * mapInfo->segmentDimTiles;
     
-    for (u32 y = 0; y < segmentDim; ++y)
+    for (u32 y = beginningOfSegmentY; y < (beginningOfSegmentY + mapInfo->segmentDimTiles); ++y)
     {
-        for (u32 x = 0; x < segmentDim; ++x)
+        for (u32 x = beginningOfSegmentX; x < (beginningOfSegmentX + mapInfo->segmentDimTiles); ++x)
         {
-            u32 tileID = mapInfo->tileArray[(((gridDim * mapInfo->currSegment) + y) * gridDim) + ((gridDim * mapInfo->currSegment) + x)];
+            u32 tileID = GetTileValue(tileMap, x, y);
+            
+            f32 minX = (f32)(mapInfo->gridLeft + ((x - beginningOfSegmentX) * mapInfo->tileSide));
+            f32 minY = (f32)(mapInfo->gridTop + ((y - beginningOfSegmentY) * mapInfo->tileSide));
+            f32 maxX = (f32)(minX + mapInfo->tileSide);
+            f32 maxY = (f32)(minY + mapInfo->tileSide);
+            
+            if (input->priClicked || input->secClicked)
+            {
+                if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
+                    (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+                {
+                    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y);
+                    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY);
+                    
+                    if (input->priClicked)
+                    {
+                        SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, input->priCursor);
+                        input->priClicked = false;
+                    }
+                    else if (input->secClicked)
+                    {
+                        SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, input->secCursor);
+                        input->secClicked = false;
+                    }
+                }
+            }
             
             u32 tileColour = 0xFF888888;
             
@@ -277,15 +179,80 @@ internal_func void Win32_DrawTiles(Win32_MapInfo *mapInfo)
                 tileColour = 0xFFFFFFFF;
             }
             
-            f32 minX = (f32)(mapInfo->gridLeft + (x * mapInfo->tileSize));
-            f32 minY = (f32)(mapInfo->gridTop + (y * mapInfo->tileSize));
-            f32 maxX = (f32)(minX + mapInfo->tileSize);
-            f32 maxY = (f32)(minY + mapInfo->tileSize);
             
-            DrawRect(minX, minY, maxX, maxY, tileColour);
+            DrawRect(backBuffer, minX, minY, maxX, maxY, tileColour);
         }
     }
-};
+    
+    Win32_DrawMapGrid(backBuffer, mapInfo, tileMap, mapInfo->gridLeft, mapInfo->gridTop, mapInfo->gridRight, mapInfo->gridBottom, 0xFFFFFFFF);
+}
+
+internal_func void Win32_DrawSelectorGrid(Win32_BackBuffer *backBuffer, Win32_SelectorInfo *selectorInfo, u32 gridColour)
+{
+    s32 minX = selectorInfo->gridLeft;
+    s32 maxX = selectorInfo->gridRight;
+    s32 minY = selectorInfo->gridTop;
+    s32 maxY = selectorInfo->gridBottom;
+    
+    // Draw Border
+    Win32_DrawHorizontalLine(backBuffer, minY, minX, maxX, 0xFF00FF00);
+    Win32_DrawHorizontalLine(backBuffer, maxY, minX, maxX, 0xFF00FF00);
+    Win32_DrawVerticalLine(backBuffer, minX, minY, maxY, 0xFF00FF00);
+    Win32_DrawVerticalLine(backBuffer, maxX, minY, maxY, 0xFF00FF00);
+    
+    // Draw Grid Lines
+    for (f32 x = ((f32)minX + selectorInfo->tileSide); x < maxX; x += selectorInfo->tileSide)
+    {
+        Win32_DrawVerticalLine(backBuffer, (s32)x, minY, maxY, gridColour);
+    }
+    
+    for (f32 y = ((f32)minY + selectorInfo->tileSide); y < maxY; y += selectorInfo->tileSide)
+    {
+        Win32_DrawHorizontalLine(backBuffer, (s32)y, minX, maxX, gridColour);
+    }
+    
+    // Draw Selected Square
+    s32 selectedSquareTop = (s32)((f32)minY + (selectorInfo->tileSide * (f32)selectorInfo->currSelection->y));
+    s32 selectedSquareBottom = (s32)(selectedSquareTop + selectorInfo->tileSide);
+    s32 selectedSquareLeft = (s32)((f32)minX + (selectorInfo->tileSide * (f32)selectorInfo->currSelection->x));
+    s32 selectedSquareRight = (s32)(selectedSquareLeft + selectorInfo->tileSide);
+    
+    Win32_DrawHorizontalLine(backBuffer, selectedSquareTop, selectedSquareLeft, selectedSquareRight, 0xFFFF0000);
+    Win32_DrawHorizontalLine(backBuffer, selectedSquareBottom, selectedSquareLeft, selectedSquareRight, 0xFFFF0000);
+    Win32_DrawVerticalLine(backBuffer, selectedSquareLeft, selectedSquareTop, selectedSquareBottom, 0xFFFF0000);
+    Win32_DrawVerticalLine(backBuffer, selectedSquareRight, selectedSquareTop, selectedSquareBottom, 0xFFFF0000);
+}
+
+internal_func void Win32_UpdateRenderSelector(Win32_BackBuffer *backBuffer, Win32_SelectorInfo *selectorInfo, Win32_Input *input)
+{
+    for (u32 y = 0; y < (selectorInfo->gridLineCount + 1); ++y)
+    {
+        for (u32 x = 0; x < (selectorInfo->gridLineCount + 1); ++x)
+        {
+            f32 minX = (f32)(selectorInfo->gridLeft + (x * selectorInfo->tileSide));
+            f32 minY = (f32)(selectorInfo->gridTop + (y * selectorInfo->tileSide));
+            f32 maxX = (f32)(minX + selectorInfo->tileSide);
+            f32 maxY = (f32)(minY + selectorInfo->tileSide);
+            
+            if (input->priClicked)
+            {
+                if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
+                    (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+                {
+                    selectorInfo->currSelection->x = (s32)((minX - selectorInfo->gridLeft) / selectorInfo->tileSide);
+                    selectorInfo->currSelection->y = (s32)((minY - selectorInfo->gridTop) / selectorInfo->tileSide);
+                    input->priClicked = false;
+                }
+            }
+            
+            u32 tileColour = 0xFF888888;
+            
+            DrawRect(backBuffer, minX, minY, maxX, maxY, tileColour);
+        }
+    }
+    
+    Win32_DrawSelectorGrid(&globalBackBuffer, selectorInfo, 0xFFFFFFFF);
+}
 
 LRESULT CALLBACK Win32_WndProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -305,7 +272,7 @@ LRESULT CALLBACK Win32_WndProc(HWND window, UINT msg, WPARAM wParam, LPARAM lPar
             HDC deviceContext = BeginPaint(window, &paint);
             
             Win32_WindowDimensions windowDim = Win32_GetWindowDimensions(window);
-            Win32_PresentBuffer(&globalBackBuffer, deviceContext, windowDim.width, windowDim.height);
+            Win32_ResizeDIBSection(&globalBackBuffer, windowDim.width, windowDim.height);
             
             EndPaint(window, &paint);
             break;
@@ -347,15 +314,41 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
             
             HDC deviceContext = GetDC(window);
             
+            World *world = (World *)malloc(sizeof(World));
+            world->tileMap = (TileMap *)malloc(sizeof(TileMap));
+            TileMap *tileMap = world->tileMap;
+            
+            tileMap->chunkShift = 4;
+            tileMap->chunkMask = (1 << tileMap->chunkShift) - 1;
+            tileMap->chunkDim = (1 << tileMap->chunkShift);
+            
+            tileMap->chunkCountX = 128;
+            tileMap->chunkCountY = 128;
+            tileMap->chunks = (TileChunk *)calloc((tileMap->chunkCountX * tileMap->chunkCountY), sizeof(TileChunk));
+            
+            for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+            {
+                for (u32 x = 0; x < tileMap->chunkCountX; ++x)
+                {
+                    tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles = (u32 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u32));
+                }
+            }
+            
             Win32_MapInfo mapInfo = {};
-            mapInfo.chunkDim = 16;
-            mapInfo.chunkCountX = 128;
-            mapInfo.chunkCountY = 128;
-            mapInfo.tileMapDim = mapInfo.chunkDim * mapInfo.chunkCountX;
-            mapInfo.segmentDim = mapInfo.tileMapDim / 32;
-            mapInfo.gridLineCount = mapInfo.segmentDim - 1;
-            mapInfo.tileArray = (u32 *)malloc((128 * 128) * (16 * 16));
-            mapInfo.currSegment = 0;
+            mapInfo.segmentDimChunks = 4;
+            mapInfo.segmentDimTiles = tileMap->chunkDim * mapInfo.segmentDimChunks;
+            mapInfo.gridLineCount = mapInfo.segmentDimTiles - 1;
+            mapInfo.currSegmentX = 0;
+            mapInfo.currSegmentY = 0;
+            
+            Win32_SelectorInfo selectorInfo = {};
+            selectorInfo.currSelection = (POINT *)malloc(sizeof(POINT));
+            selectorInfo.currSelection->x = 0;
+            selectorInfo.currSelection->y = 0;
+            
+            Win32_Input input = {};
+            input.priCursor = 1;
+            input.secCursor = 0;
             
             while (globalRunning)
             {
@@ -376,6 +369,30 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
                             break;
                         }
                         
+                        case WM_LBUTTONDOWN:
+                        {
+                            input.priClicked = true;
+                            
+                            POINT mouseLocation;
+                            GetCursorPos(&mouseLocation);
+                            ScreenToClient(window, &mouseLocation);
+                            input.mouseLoc = mouseLocation;
+                            
+                            break;
+                        }
+                        
+                        case WM_RBUTTONDOWN:
+                        {
+                            input.secClicked = true;
+                            
+                            POINT mouseLocation;
+                            GetCursorPos(&mouseLocation);
+                            ScreenToClient(window, &mouseLocation);
+                            input.mouseLoc = mouseLocation;
+                            
+                            break;
+                        }
+                        
                         default:
                         {
                             TranslateMessage(&message);
@@ -385,27 +402,31 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
                     }
                 }
                 
-                Win32_Input input = {};
-                POINT mouseLocation;
-                GetCursorPos(&mouseLocation);
-                ScreenToClient(window, &mouseLocation);
-                input.mouseLoc = mouseLocation;
-                
                 // NOTE(bSalmon): 1 pixel padding
-                s32 padding = 1;
-                s32 maxX = (globalBackBuffer.width - 1) - padding;
-                s32 maxY = (globalBackBuffer.height - 1) - padding;
+                mapInfo.padding = 1;
+                mapInfo.gridRight = (globalBackBuffer.width - 1) - mapInfo.padding;
+                mapInfo.gridBottom = (globalBackBuffer.height - 1) - mapInfo.padding;
                 
-                mapInfo.gridTop = padding;
-                mapInfo.gridDimPixels = maxY - mapInfo.gridTop;
-                mapInfo.tileSize = (f32)mapInfo.gridDimPixels / (f32)mapInfo.segmentDim;
-                mapInfo.segmentDimTiles = (s32)(mapInfo.gridDimPixels / mapInfo.tileSize);
-                mapInfo.gridLeft = maxX - (maxY - mapInfo.gridTop);
+                mapInfo.gridTop = mapInfo.padding;
+                mapInfo.gridDimPixels = mapInfo.gridBottom - mapInfo.gridTop;
+                mapInfo.tileSide = (f32)mapInfo.gridDimPixels / (f32)mapInfo.segmentDimTiles;
+                mapInfo.gridLeft = mapInfo.gridRight - (mapInfo.gridBottom - mapInfo.gridTop);
                 
-                mapInfo.tileArray[2049] = 1;
+                Win32_UpdateRenderEditorMap(&globalBackBuffer, &mapInfo, tileMap, &input);
                 
-                Win32_DrawTiles(&mapInfo);
-                Win32_DrawMapGrid(&mapInfo, mapInfo.gridLeft, mapInfo.gridTop, maxX, maxY, 0xFFFFFFFF);
+                selectorInfo.gridLineCount = (tileMap->chunkCountX / 4) - 1;
+                selectorInfo.gridDimPixels = globalBackBuffer.width / 4;
+                selectorInfo.padding = 1;
+                selectorInfo.gridLeft = selectorInfo.padding;
+                selectorInfo.gridRight = selectorInfo.gridLeft + selectorInfo.gridDimPixels;
+                selectorInfo.gridBottom = (globalBackBuffer.height - 1) - selectorInfo.padding;
+                selectorInfo.gridTop = selectorInfo.gridBottom - selectorInfo.gridDimPixels;
+                selectorInfo.tileSide = (f32)selectorInfo.gridDimPixels / ((f32)tileMap->chunkCountX / (f32)mapInfo.segmentDimChunks);
+                
+                Win32_UpdateRenderSelector(&globalBackBuffer, &selectorInfo, &input);
+                
+                mapInfo.currSegmentX = selectorInfo.currSelection->x;
+                mapInfo.currSegmentY = selectorInfo.currSelection->y;
                 
                 Win32_WindowDimensions windowDim = Win32_GetWindowDimensions(window);
                 Win32_PresentBuffer(&globalBackBuffer, deviceContext, windowDim.width, windowDim.height);

@@ -30,5 +30,5 @@ pushd ..\build\map_editor
 
 echo.
 echo COMPILING MAP EDITOR
-cl %commonFlagsCompiler% ..\..\code\map_editor\win32_urban_mapedit.cpp /link -incremental:no -opt:ref user32.lib gdi32.lib
+cl %commonFlagsCompiler% ..\..\code\map_editor\win32_urban_mapedit.cpp /link -incremental:no -opt:ref user32.lib gdi32.lib comdlg32.lib
 popd

@@ -5,6 +5,8 @@ Author: Brock Salmon
 Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 */
 
+// TODO(bSalmon): Pull out both Grid drawing to be its own function?
+
 #include <Windows.h>
 
 #include "../urban.h"
@@ -254,6 +256,150 @@ internal_func void Win32_UpdateRenderSelector(Win32_BackBuffer *backBuffer, Win3
     Win32_DrawSelectorGrid(&globalBackBuffer, selectorInfo, 0xFFFFFFFF);
 }
 
+internal_func void Win32_UpdateRenderCursorBoxes(Win32_BackBuffer *backBuffer, Win32_Input *input, s32 startCursor, s32 endCursor, s32 paddingX, s32 paddingY, s32 boxDim, u32 boxColour)
+{
+    for (s32 i = startCursor; i < endCursor; ++i)
+    {
+        u32 rectColour = 0xFF000000;
+        switch (i)
+        {
+            case 0:
+            {
+                rectColour = 0xFF888888;
+                break;
+            }
+            
+            case 1:
+            {
+                rectColour = 0xFFFFFFFF;
+                break;
+            }
+            
+            default:
+            {
+                break;
+            }
+        }
+        
+        s32 minX = (i * boxDim) + (i * paddingX) + 1;
+        if (Win32_DrawGUIBox(backBuffer, input, i, minX, paddingY, minX + boxDim, paddingY + boxDim, boxColour, rectColour))
+        {
+            input->priCursor = i;
+        }
+    }
+}
+
+internal_func void Win32_LoadMap(TileMap *tileMap, char *fileName)
+{
+    Win32_ClearTileMap(tileMap);
+    
+    HANDLE fileHandle = CreateFileA(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    if (fileHandle != INVALID_HANDLE_VALUE)
+    {
+        // TODO(bSalmon): Fill this in once I figure out how to structure the map file
+    }
+}
+
+internal_func void Win32_HandleMenuCommands(Win32_Menus menus, TileMap *tileMap, HWND window, WPARAM wParam, LPARAM lParam)
+{
+	// NOTE(bSalmon): Emulator Options and Settings currently only have one item so there is no need for nested if statements
+	HMENU selectedMenu = (HMENU)lParam;
+	s32 itemPos = (s32)wParam;
+	if (selectedMenu == menus.file)
+	{
+        switch (itemPos)
+        {
+            // New Map
+            case 0:
+            {
+                Win32_ClearTileMap(tileMap);
+                break;
+            }
+            
+            // Open Map
+            case 1:
+            {
+                char filename[256];
+                OPENFILENAMEA openFileNameInfo = {};
+                openFileNameInfo.lStructSize = sizeof(OPENFILENAMEA);
+                openFileNameInfo.hwndOwner = window;
+                openFileNameInfo.lpstrFilter = "All Files\0*.*\0\0";
+                openFileNameInfo.lpstrFile = filename;
+                openFileNameInfo.nMaxFile = 256;
+                openFileNameInfo.lpstrTitle = "Open Urban Sprawl Map File";
+                openFileNameInfo.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+                if (GetOpenFileNameA(&openFileNameInfo))
+                {
+                    Win32_LoadMap(tileMap, filename);
+                }
+                
+                break;
+            }
+            
+            // Save Map
+            case 2:
+            {
+                /*
+                for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+                {
+                    for (u32 x = 0; x < tileMap->chunkCountX; ++x)
+                    {
+                        tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles;
+                    }
+                    }
+                */
+                
+                break;
+            }
+            
+            // Save Map As
+            case 3:
+            {
+                break;
+            }
+            
+            // Exit Editor
+            case 4:
+            {
+                globalRunning = false;
+                break;
+            }
+            
+            default:
+            {
+                break;
+            }
+        }
+        
+	}
+	else if (selectedMenu == menus.settings)
+	{
+        // TODO(bSalmon): Currently no settings
+        
+        /*
+  MENUITEMINFOA menuItemInfo = {};
+  menuItemInfo.cbSize = sizeof(MENUITEMINFOA);
+  if (machine->enableColour)
+  {
+   menuItemInfo.fMask = MIIM_CHECKMARKS | MIIM_FTYPE | MIIM_STATE | MIIM_STRING ;
+   menuItemInfo.fType = MFT_STRING;
+   menuItemInfo.fState = MFS_UNCHECKED;
+   menuItemInfo.dwTypeData = "Enable Colour";
+   machine->enableColour = false;
+  }
+  else
+  {
+   menuItemInfo.fMask = MIIM_CHECKMARKS | MIIM_FTYPE | MIIM_STATE | MIIM_STRING ;
+   menuItemInfo.fType = MFT_STRING;
+   menuItemInfo.fState = MFS_CHECKED;
+   menuItemInfo.dwTypeData = "Enable Colour";
+   machine->enableColour = true;
+  }
+  SetMenuItemInfo(selectedMenu, itemPos, TRUE, &menuItemInfo);
+ */
+    }
+}
+
 LRESULT CALLBACK Win32_WndProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
@@ -309,10 +455,10 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
         
         if (window)
         {
+            HDC deviceContext = GetDC(window);
+            
             Win32_Menus menus = {};
             Win32_InitMenus(window, &menus);
-            
-            HDC deviceContext = GetDC(window);
             
             World *world = (World *)malloc(sizeof(World));
             world->tileMap = (TileMap *)malloc(sizeof(TileMap));
@@ -349,6 +495,7 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
             Win32_Input input = {};
             input.priCursor = 1;
             input.secCursor = 0;
+            input.totalCursors = 2;
             
             while (globalRunning)
             {
@@ -359,7 +506,7 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
                     {
                         case WM_MENUCOMMAND:
                         {
-                            // Handle Menu Commands
+                            Win32_HandleMenuCommands(menus, tileMap, window, message.wParam, message.lParam);
                             break;
                         }
                         
@@ -427,6 +574,8 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
                 
                 mapInfo.currSegmentX = selectorInfo.currSelection->x;
                 mapInfo.currSegmentY = selectorInfo.currSelection->y;
+                
+                Win32_UpdateRenderCursorBoxes(&globalBackBuffer, &input, 0, input.totalCursors, 1, 1, 50, 0xFFFFFFFF);
                 
                 Win32_WindowDimensions windowDim = Win32_GetWindowDimensions(window);
                 Win32_PresentBuffer(&globalBackBuffer, deviceContext, windowDim.width, windowDim.height);

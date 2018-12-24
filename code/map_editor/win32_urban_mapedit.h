@@ -58,6 +58,7 @@ struct Win32_Input
     POINT mouseLoc;
     u32 priCursor;
     u32 secCursor;
+    s32 totalCursors;
 };
 
 struct Win32_WindowDimensions
@@ -141,6 +142,59 @@ inline void DrawRect(Win32_BackBuffer *backBuffer, f32 minX, f32 minY, f32 maxX,
             }
             
             pixel += backBuffer->pitch;
+        }
+    }
+}
+
+inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u32 cursor, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 boxColour, u32 rectColour)
+{
+    // NOTE(bSalmon): As this function is used for GUI buttons, this returns true if the button is clicked
+    b32 result = false;
+    
+    if (input->priCursor == cursor)
+    {
+        boxColour = 0xFFFF0000;
+    }
+    
+    Win32_DrawHorizontalLine(backBuffer, minY, minX, maxX, boxColour);
+    Win32_DrawHorizontalLine(backBuffer, maxY, minX, maxX, boxColour);
+    Win32_DrawVerticalLine(backBuffer, minX, minY, maxY, boxColour);
+    Win32_DrawVerticalLine(backBuffer, maxX, minY, maxY, boxColour);
+    
+    if (input->priClicked)
+    {
+        if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
+            (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+        {
+            result = true;
+            input->priClicked = false;
+        }
+    }
+    
+    s32 rectPadding = (maxX - minX) / 4;
+    DrawRect(backBuffer, (f32)(minX + rectPadding), (f32)(minY + rectPadding), (f32)(maxX - rectPadding), (f32)(maxY - rectPadding), rectColour);
+    
+    return result;
+}
+
+inline void Win32_ClearTileMap(TileMap *tileMap)
+{
+    for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+    {
+        for (u32 x = 0; x < tileMap->chunkCountX; ++x)
+        {
+            free(tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles);
+        }
+    }
+    
+    free(tileMap->chunks);
+    tileMap->chunks = (TileChunk *)calloc((tileMap->chunkCountX * tileMap->chunkCountY), sizeof(TileChunk));
+    
+    for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+    {
+        for (u32 x = 0; x < tileMap->chunkCountX; ++x)
+        {
+            tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles = (u32 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u32));
         }
     }
 }

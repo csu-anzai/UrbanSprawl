@@ -16,7 +16,6 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #include <stdio.h>
 #include <malloc.h>
 
-
 // Utilities
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define SWAP(a, b) {decltype(a) temp = a; a = b; b = temp;}
@@ -164,22 +163,6 @@ inline char *ConstructIPString(u32 host, u16 port)
     sprintf_s(resultString, stringSize, "%d.%d.%d.%d:%d\0", ip4, ip3, ip2, ip1, port);
     
     return resultString;
-}
-
-// Use memcpy to copy variables into a data buffer and progress the index so the next slot can be filled
-// (and vice versa)
-template <class varType>
-inline void U8DataBlockFill(u8 *dataBlockStart, varType *var, s32 *index)
-{
-    CopyMem(dataBlockStart, var, sizeof(*var));
-    *index += sizeof(*var);
-}
-
-template <class varType>
-inline void FillVariableFromDataBlock(varType *var, u8 *dataBlockStart, s32 *index)
-{
-    CopyMem(var, dataBlockStart, sizeof(*var));
-    *index += sizeof(*var);
 }
 
 #define URBAN_H

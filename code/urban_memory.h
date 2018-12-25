@@ -33,6 +33,22 @@ inline void *SetMem(void *block, u8 value, mem_index size)
     return block;
 }
 
+// Use CopyMem to copy variables into a data buffer and progress the index so the next slot can be filled
+// (and vice versa)
+template <class block_type, class var_type>
+inline void DataBlockFill(block_type *dataBlockStart, var_type *var, s32 *index)
+{
+    CopyMem(dataBlockStart + (*index / sizeof(block_type)), var, sizeof(*var));
+    *index += sizeof(*var);
+}
+
+template <class var_type, class block_type>
+inline void FillVariableFromDataBlock(var_type *var, block_type *dataBlockStart, s32 *index)
+{
+    CopyMem(var, dataBlockStart + (*index / sizeof(block_type)), sizeof(*var));
+    *index += sizeof(*var);
+}
+
 // TODO(bSalmon): malloc/free/calloc
 
 #define URBAN_MEMORY_H

@@ -43,7 +43,7 @@ DEBUG_PLATFORM_FREE_FILE_MEM(Debug_PlatformFreeFileMem)
 {
     if (memory)
     {
-        VirtualFree(memory, 0, MEM_RELEASE);
+        free(memory);
     }
 }
 
@@ -58,7 +58,7 @@ DEBUG_PLATFORM_READ_FILE(Debug_PlatformReadFile)
         if (GetFileSizeEx(fileHandle, &fileSize))
         {
             u32 fileSize32 = SafeTruncateU64(fileSize.QuadPart);
-            result.contents = VirtualAlloc(0, fileSize32, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+            result.contents = malloc(fileSize32);
             if (result.contents)
             {
                 DWORD bytesRead;
@@ -68,7 +68,7 @@ DEBUG_PLATFORM_READ_FILE(Debug_PlatformReadFile)
                 }
                 else
                 {
-                    Debug_PlatformFreeFileMem(result.contents);
+                    free(result.contents);
                     result.contents = 0;
                 }
             }

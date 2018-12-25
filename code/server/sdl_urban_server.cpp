@@ -121,8 +121,8 @@ s32 main(s32 argc, char *argv[])
                     }
                 }
                 
-                U8DataBlockFill<s32>(&dataInput[index], &playerX, &index);
-                U8DataBlockFill<s32>(&dataInput[index], &playerY, &index);
+                DataBlockFill<u8, s32>(&dataInput[index], &playerX, &index);
+                DataBlockFill<u8, s32>(&dataInput[index], &playerY, &index);
                 
                 // NOTE(bSalmon): If Input is received from the keyboard
                 // break so the controller doesn't overwrite it

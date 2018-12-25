@@ -179,22 +179,17 @@ inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u3
 
 inline void Win32_ClearTileMap(TileMap *tileMap)
 {
-    for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+    u32 tileMapSizeChunks = (tileMap->chunkCountX * tileMap->chunkCountY);
+    for (u32 i = 0; i < tileMapSizeChunks; ++i)
     {
-        for (u32 x = 0; x < tileMap->chunkCountX; ++x)
-        {
-            free(tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles);
-        }
+        free(tileMap->chunks[i].tiles);
     }
     
     free(tileMap->chunks);
-    tileMap->chunks = (TileChunk *)calloc((tileMap->chunkCountX * tileMap->chunkCountY), sizeof(TileChunk));
+    tileMap->chunks = (TileChunk *)calloc(tileMapSizeChunks, sizeof(TileChunk));
     
-    for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+    for (u32 i = 0; i < tileMapSizeChunks; ++i)
     {
-        for (u32 x = 0; x < tileMap->chunkCountX; ++x)
-        {
-            tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles = (u32 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u32));
-        }
+        tileMap->chunks[i].tiles = (u32 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u32));
     }
 }

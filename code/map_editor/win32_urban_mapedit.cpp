@@ -77,8 +77,7 @@ internal_func void Win32_InitMenus(HWND window, Win32_Menus *menus)
     // File Menu Items
     AppendMenuA(file, MF_STRING, 0, "New Map");
     AppendMenuA(file, MF_STRING, 0, "Open Map...");
-    AppendMenuA(file, MF_STRING, 0, "Save Map");
-    AppendMenuA(file, MF_STRING, 0, "Save Map As...");
+    AppendMenuA(file, MF_STRING, 0, "Save Map...");
     AppendMenuA(file, MF_STRING, 0, "Exit Editor");
     
     // Settings Menu Items
@@ -296,17 +295,64 @@ internal_func void Win32_LoadMap(TileMap *tileMap, char *fileName)
     HANDLE fileHandle = CreateFileA(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
     if (fileHandle != INVALID_HANDLE_VALUE)
     {
-        // TODO(bSalmon): Fill this in once I figure out how to structure the map file
+        u32 *readBlock = (u32 *)calloc(((tileMap->chunkCountX * tileMap->chunkCountY) * (tileMap->chunkDim * tileMap->chunkDim)), sizeof(u32));
+        
+        LARGE_INTEGER fileSize;
+        if (GetFileSizeEx(fileHandle, &fileSize))
+        {
+            u32 fileSize32 = SafeTruncateU64(fileSize.QuadPart);
+            DWORD bytesRead;
+            ReadFile(fileHandle, readBlock, fileSize32, &bytesRead, 0);
+            
+            for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCountY); ++y)
+            {
+                for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCountX); ++x)
+                {
+                    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y);
+                    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY);
+                    
+                    SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, readBlock[(y * (tileMap->chunkDim * tileMap->chunkCountX)) + x]);
+                }
+            }
+        }
+        
+        CloseHandle(fileHandle);
+        free(readBlock);
+    }
+}
+
+internal_func void Win32_SaveMap(TileMap *tileMap, char *filename)
+{
+    HANDLE fileHandle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_NEW, 0, 0);
+    if (fileHandle != INVALID_HANDLE_VALUE)
+    {
+        u32 *writeBlock = (u32 *)calloc(((tileMap->chunkCountX * tileMap->chunkCountY) * (tileMap->chunkDim * tileMap->chunkDim)), sizeof(u32));
+        s32 index = 0;
+        
+        for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCountY); ++y)
+        {
+            for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCountX); ++x)
+            {
+                u32 tileID = GetTileValue(tileMap, x, y);
+                DataBlockFill<u32, u32>(writeBlock, &tileID, &index);
+            }
+        }
+        
+        DWORD bytesWritten;
+        WriteFile(fileHandle, writeBlock, index, &bytesWritten, 0);
+        
+        CloseHandle(fileHandle);
+        free(writeBlock);
     }
 }
 
 internal_func void Win32_HandleMenuCommands(Win32_Menus menus, TileMap *tileMap, HWND window, WPARAM wParam, LPARAM lParam)
 {
-	// NOTE(bSalmon): Emulator Options and Settings currently only have one item so there is no need for nested if statements
-	HMENU selectedMenu = (HMENU)lParam;
-	s32 itemPos = (s32)wParam;
-	if (selectedMenu == menus.file)
-	{
+    // NOTE(bSalmon): Emulator Options and Settings currently only have one item so there is no need for nested if statements
+    HMENU selectedMenu = (HMENU)lParam;
+    s32 itemPos = (s32)wParam;
+    if (selectedMenu == menus.file)
+    {
         switch (itemPos)
         {
             // New Map
@@ -319,13 +365,13 @@ internal_func void Win32_HandleMenuCommands(Win32_Menus menus, TileMap *tileMap,
             // Open Map
             case 1:
             {
-                char filename[256];
+                char filename[1024];
                 OPENFILENAMEA openFileNameInfo = {};
                 openFileNameInfo.lStructSize = sizeof(OPENFILENAMEA);
                 openFileNameInfo.hwndOwner = window;
                 openFileNameInfo.lpstrFilter = "All Files\0*.*\0\0";
                 openFileNameInfo.lpstrFile = filename;
-                openFileNameInfo.nMaxFile = 256;
+                openFileNameInfo.nMaxFile = 512;
                 openFileNameInfo.lpstrTitle = "Open Urban Sprawl Map File";
                 openFileNameInfo.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
                 if (GetOpenFileNameA(&openFileNameInfo))
@@ -339,27 +385,26 @@ internal_func void Win32_HandleMenuCommands(Win32_Menus menus, TileMap *tileMap,
             // Save Map
             case 2:
             {
-                /*
-                for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+                char filename[256];
+                OPENFILENAMEA openFileNameInfo = {};
+                openFileNameInfo.lStructSize = sizeof(OPENFILENAMEA);
+                openFileNameInfo.hwndOwner = window;
+                openFileNameInfo.lpstrFilter = "USM - Urban Sprawl Map File\0*.USM\0";
+                openFileNameInfo.lpstrFile = filename;
+                openFileNameInfo.nMaxFile = 512;
+                openFileNameInfo.lpstrTitle = "Save Urban Sprawl Map File";
+                openFileNameInfo.Flags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
+                openFileNameInfo.lpstrDefExt = "USM";
+                if (GetSaveFileNameA(&openFileNameInfo))
                 {
-                    for (u32 x = 0; x < tileMap->chunkCountX; ++x)
-                    {
-                        tileMap->chunks[x + (tileMap->chunkCountX * y)].tiles;
-                    }
-                    }
-                */
+                    Win32_SaveMap(tileMap, filename);
+                }
                 
                 break;
             }
             
-            // Save Map As
-            case 3:
-            {
-                break;
-            }
-            
             // Exit Editor
-            case 4:
+            case 3:
             {
                 globalRunning = false;
                 break;
@@ -371,32 +416,32 @@ internal_func void Win32_HandleMenuCommands(Win32_Menus menus, TileMap *tileMap,
             }
         }
         
-	}
-	else if (selectedMenu == menus.settings)
-	{
+    }
+    else if (selectedMenu == menus.settings)
+    {
         // TODO(bSalmon): Currently no settings
         
         /*
-  MENUITEMINFOA menuItemInfo = {};
-  menuItemInfo.cbSize = sizeof(MENUITEMINFOA);
-  if (machine->enableColour)
-  {
-   menuItemInfo.fMask = MIIM_CHECKMARKS | MIIM_FTYPE | MIIM_STATE | MIIM_STRING ;
-   menuItemInfo.fType = MFT_STRING;
-   menuItemInfo.fState = MFS_UNCHECKED;
-   menuItemInfo.dwTypeData = "Enable Colour";
-   machine->enableColour = false;
-  }
-  else
-  {
-   menuItemInfo.fMask = MIIM_CHECKMARKS | MIIM_FTYPE | MIIM_STATE | MIIM_STRING ;
-   menuItemInfo.fType = MFT_STRING;
-   menuItemInfo.fState = MFS_CHECKED;
-   menuItemInfo.dwTypeData = "Enable Colour";
-   machine->enableColour = true;
-  }
-  SetMenuItemInfo(selectedMenu, itemPos, TRUE, &menuItemInfo);
- */
+        MENUITEMINFOA menuItemInfo = {};
+        menuItemInfo.cbSize = sizeof(MENUITEMINFOA);
+        if (machine->enableColour)
+        {
+        menuItemInfo.fMask = MIIM_CHECKMARKS | MIIM_FTYPE | MIIM_STATE | MIIM_STRING ;
+        menuItemInfo.fType = MFT_STRING;
+        menuItemInfo.fState = MFS_UNCHECKED;
+        menuItemInfo.dwTypeData = "Enable Colour";
+        machine->enableColour = false;
+        }
+        else
+        {
+        menuItemInfo.fMask = MIIM_CHECKMARKS | MIIM_FTYPE | MIIM_STATE | MIIM_STRING ;
+        menuItemInfo.fType = MFT_STRING;
+        menuItemInfo.fState = MFS_CHECKED;
+        menuItemInfo.dwTypeData = "Enable Colour";
+        machine->enableColour = true;
+        }
+        SetMenuItemInfo(selectedMenu, itemPos, TRUE, &menuItemInfo);
+        */
     }
 }
 

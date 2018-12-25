@@ -62,7 +62,7 @@ internal_func InterpretedNetworkData InterpretNetworkData(Game_NetworkPacket *ne
     InterpretedNetworkData result = {};
     
     s32 index = 0;
-    FillVariableFromDataBlock(&result.playerPos, &networkPacket->data[index], &index);
+    FillVariableFromDataBlock<TileMapPosition, u8>(&result.playerPos, &networkPacket->data[index], &index);
     
     return result;
 }
@@ -152,24 +152,24 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
         tileMap->tileSideMeters = 2.0f;
         tileMap->metersToPixels = (f32)tileMap->tileSidePixels / tileMap->tileSideMeters;
         
-        u32 tilesPerWidth = 17;
-        u32 tilesPerHeight = 9;
-        for (u32 screenY = 0; screenY < 32; ++screenY)
+        u32 *mapReadBlock = (u32 *)calloc(((tileMap->chunkCountX * tileMap->chunkCountY) * (tileMap->chunkDim * tileMap->chunkDim)), sizeof(u32));
+        
+        Debug_ReadFileResult fileResult = memory->Debug_PlatformReadFile("map1.usm");
+        
+        mapReadBlock = (u32 *)fileResult.contents;
+        
+        for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCountY); ++y)
         {
-            for (u32 screenX = 0; screenX < 32; ++screenX)
+            for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCountX); ++x)
             {
-                for (u32 tileY = 0; tileY < tilesPerHeight; ++tileY)
-                {
-                    for (u32 tileX = 0; tileX < tilesPerWidth; ++tileX)
-                    {
-                        u32 absTileX = (screenX * tilesPerWidth) + tileX;
-                        u32 absTileY = (screenY * tilesPerHeight) + tileY;
-                        
-                        SetTileValue(&gameState->worldRegion, world->tileMap, absTileX, absTileY, ((tileX == tileY) && (tileY % 2) ? 1 : 0));
-                    }
-                }
+                TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y);
+                TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY);
+                
+                SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, mapReadBlock[(y * (tileMap->chunkDim * tileMap->chunkCountX)) + x]);
             }
         }
+        
+        memory->Debug_PlatformFreeFileMem(fileResult.contents);
         
         memory->memInitialised = true;
     }

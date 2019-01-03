@@ -54,13 +54,22 @@ internal_func void SetTileValue(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y
     }
 }
 
-internal_func u32 GetTileValue(TileMap *tileMap, u32 x, u32 y)
+internal_func u32 GetTileValue(TileMap *tileMap, u32 x, u32 y, u32 z)
 {
     u32 result = 0;
     
-    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y);
-    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY);
+    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, z);
+    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
     result = GetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY);
+    
+    return result;
+}
+
+internal_func u32 GetTileValue(TileMap *tileMap, TileMapPosition pos)
+{
+    u32 result = 0;
+    
+    result = GetTileValue(tileMap, pos.absTileX, pos.absTileY, pos.absTileZ);
     
     return result;
 }
@@ -70,8 +79,10 @@ internal_func b32 IsTileMapPointValid(TileMap *tileMap, TileMapPosition tileMapP
 {
     b32 result = false;
     
-    u32 tileValue = GetTileValue(tileMap, tileMapPos.absTileX, tileMapPos.absTileY);
-    result = (tileValue == 0);
+    u32 tileValue = GetTileValue(tileMap, tileMapPos.absTileX, tileMapPos.absTileY, tileMapPos.absTileZ);
+    result = ((tileValue == TILE_WALKABLE) ||
+              (tileValue == TILE_STAIRS_UP) ||
+              (tileValue == TILE_STAIRS_DOWN));
     
     return result;
 }
@@ -86,11 +97,21 @@ internal_func TileMapPosition RecanonicalisePos(TileMap *tileMap, TileMapPositio
     return result;
 }
 
-internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, u32 x, u32 y, u32 tileValue)
+internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, u32 x, u32 y, u32 z, u32 tileValue)
 {
-    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y);
-    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY);
+    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, z);
+    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
     
     ASSERT(chunk);
-    SetTileValueUnchecked(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, tileValue);
+    if (!chunk->tiles)
+    {
+        u32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
+        chunk->tiles = PushArray(memRegion, tileCount, u32);
+        for (u32 tileIndex = 0; tileIndex < tileCount; ++tileIndex)
+        {
+            chunk->tiles[tileIndex] = TILE_WALKABLE;
+        }
+    }
+    
+    SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, tileValue);
 }

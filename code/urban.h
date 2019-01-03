@@ -32,6 +32,7 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #define TERABYTES(value) (GIGABYTES(value)*1024LL)
 
 #define PI 3.14159265359f
+#define MAX_CLIENTS 8
 
 struct World
 {
@@ -57,6 +58,24 @@ struct InterpretedNetworkData
 {
     TileMapPosition playerPos;
 };
+
+inline void InitMemRegion(MemoryRegion *memRegion, mem_index size, u8 *base)
+{
+    memRegion->size = size;
+    memRegion->base = base;
+    memRegion->used = 0;
+}
+
+#define PushStruct(region, type) (type *)PushSize_(region, sizeof(type))
+#define PushArray(region, count, type) (type *)PushSize_(region, (count) * sizeof(type))
+inline void *PushSize_(MemoryRegion *memRegion, mem_index size)
+{
+    ASSERT((memRegion->used + size) <= memRegion->size);
+    void *result = memRegion->base + memRegion->used;
+    memRegion->used += size;
+    
+    return result;
+}
 
 inline Game_Controller *GetGameController(Game_Input *input, s32 controllerIndex)
 {

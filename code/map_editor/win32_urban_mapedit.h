@@ -2,7 +2,7 @@
 struct Win32_Menus
 {
     HMENU file;
-    HMENU settings;
+    HMENU tools;
 };
 
 struct Win32_BackBuffer
@@ -33,6 +33,7 @@ struct Win32_MapInfo
     
     u32 currSegmentX;
     u32 currSegmentY;
+    u32 currZ;
 };
 
 struct Win32_SelectorInfo
@@ -59,6 +60,8 @@ struct Win32_Input
     u32 priCursor;
     u32 secCursor;
     s32 totalCursors;
+    b32 rectCursor;
+    b32 topLeftSet;
 };
 
 struct Win32_WindowDimensions
@@ -146,12 +149,12 @@ inline void DrawRect(Win32_BackBuffer *backBuffer, f32 minX, f32 minY, f32 maxX,
     }
 }
 
-inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u32 cursor, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 boxColour, u32 rectColour)
+inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u32 condition, u32 active, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 boxColour, u32 rectColour)
 {
     // NOTE(bSalmon): As this function is used for GUI buttons, this returns true if the button is clicked
     b32 result = false;
     
-    if (input->priCursor == cursor)
+    if (condition == active)
     {
         boxColour = 0xFFFF0000;
     }

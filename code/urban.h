@@ -34,9 +34,12 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #define PI 3.14159265359f
 #define MAX_CLIENTS 8
 
-struct World
+enum FacingDir
 {
-    TileMap *tileMap;
+    FACING_FRONT,
+    FACING_LEFT,
+    FACING_BACK,
+    FACING_RIGHT
 };
 
 struct MemoryRegion
@@ -44,19 +47,6 @@ struct MemoryRegion
     mem_index size;
     u8 *base;
     mem_index used;
-};
-
-struct Game_State
-{
-    MemoryRegion worldRegion;
-    World *world;
-    
-    TileMapPosition playerPos;
-};
-
-struct InterpretedNetworkData
-{
-    TileMapPosition playerPos;
 };
 
 inline void InitMemRegion(MemoryRegion *memRegion, mem_index size, u8 *base)
@@ -76,6 +66,73 @@ inline void *PushSize_(MemoryRegion *memRegion, mem_index size)
     
     return result;
 }
+
+#pragma pack(push, 1)
+struct BitmapHeader
+{
+    u16 fileType;
+    u32 fileSize;
+    u16 reserved1;
+    u16 reserved2;
+    u32 bitmapOffset;
+    
+    u32 size;
+    s32 width;
+    s32 height;
+    u16 planes;
+    u16 bitsPerPixel;
+    u32 compression;
+    u32 sizeOfBitmap;
+    s32 horzResolution;
+    s32 vertResolution;
+    u32 coloursUsed;
+    u32 coloursImportant;
+    
+    u32 redMask;
+    u32 greenMask;
+    u32 blueMask;
+};
+#pragma pack(pop)
+
+struct World
+{
+    TileMap *tileMap;
+};
+
+struct LoadedBitmap
+{
+    s32 width;
+    s32 height;
+    u32 *pixelData;
+};
+
+struct CharacterBitmaps
+{
+    s32 alignX;
+    s32 alignY;
+    LoadedBitmap head;
+    LoadedBitmap torso;
+    LoadedBitmap legs;
+    LoadedBitmap feet;
+};
+
+struct Game_State
+{
+    MemoryRegion worldRegion;
+    World *world;
+    
+    TileMapPosition cameraPos;
+    TileMapPosition playerPos;
+    
+    LoadedBitmap background;
+    u32 playerDir;
+    CharacterBitmaps playerBitmaps[4];
+};
+
+struct InterpretedNetworkData
+{
+    TileMapPosition playerPos;
+};
 
 inline Game_Controller *GetGameController(Game_Input *input, s32 controllerIndex)
 {

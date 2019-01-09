@@ -84,7 +84,7 @@ internal_func void DrawRect(Game_BackBuffer *backBuffer, f32 minX, f32 minY, f32
         
         for (s32 y = roundedMinY; y < roundedMaxY; ++y)
         {
-            if ((pixel >= backBuffer->memory) && ((pixel + 4) <= endOfBuffer))
+            if ((pixel > backBuffer->memory) && ((pixel + 4) <= endOfBuffer))
             {
                 *(u32 *)pixel = colour;
             }
@@ -93,6 +93,117 @@ internal_func void DrawRect(Game_BackBuffer *backBuffer, f32 minX, f32 minY, f32
         }
     }
 }
+
+internal_func LoadedBitmap Debug_LoadBMP(char *filename, debug_platformReadFile *Debug_PlatformReadFile)
+{
+    LoadedBitmap result = {};
+    
+    Debug_ReadFileResult readResult = Debug_PlatformReadFile(filename);
+    if (readResult.contentsSize != 0)
+    {
+        BitmapHeader *header = (BitmapHeader *)readResult.contents;
+        u32 *pixels = (u32 *)((u8 *)readResult.contents + header->bitmapOffset);
+        result.pixelData = pixels;
+        result.width = header->width;
+        result.height = header->height;
+        
+        ASSERT(header->compression == 3);
+        
+        // NOTE(bSalmon): Bytes order determined by the header
+        u32 redMask = header->redMask;
+        u32 greenMask = header->greenMask;
+        u32 blueMask = header->blueMask;
+        u32 alphaMask = ~(redMask | greenMask | blueMask);
+        
+        BitScanResult redShift = FindLeastSignificantSetBit(redMask);
+        BitScanResult greenShift = FindLeastSignificantSetBit(greenMask);
+        BitScanResult blueShift = FindLeastSignificantSetBit(blueMask);
+        BitScanResult alphaShift = FindLeastSignificantSetBit(alphaMask);
+        
+        ASSERT(redShift.found);
+        ASSERT(greenShift.found);
+        ASSERT(blueShift.found);
+        ASSERT(alphaShift.found);
+        
+        u32 *srcDest = pixels;
+        for (s32 y = 0; y < header->height; ++y)
+        {
+            for (s32 x = 0; x < header->width; ++x)
+            {
+                u32 pixel = *srcDest;
+                *srcDest++ = ((((pixel >> alphaShift.index) & 0xFF) << 24) |
+                              (((pixel >> redShift.index) & 0xFF) << 16) |
+                              (((pixel >> greenShift.index) & 0xFF) << 8) |
+                              (((pixel >> blueShift.index) & 0xFF)));
+            }
+        }
+    }
+    
+    return result;
+}
+
+internal_func void DrawBitmap(Game_BackBuffer *backBuffer, LoadedBitmap *bitmap, f32 fX, f32 fY, s32 alignX = 0, s32 alignY = 0)
+{
+    s32 minX = RoundF32ToS32(fX) + alignX;
+    s32 minY = RoundF32ToS32(fY) + alignY;
+    s32 maxX = RoundF32ToS32(fX + (f32)bitmap->width);
+    s32 maxY = RoundF32ToS32(fY + (f32)bitmap->height);
+    
+    if (minX < 0)
+    {
+        minX = 0;
+    }
+    
+    if (minY < 0)
+    {
+        minY = 0;
+    }
+    
+    if (maxX > backBuffer->width)
+    {
+        maxX = backBuffer->width;
+    }
+    
+    if (maxY > backBuffer->height)
+    {
+        maxY = backBuffer->height;
+    }
+    
+    u32 *srcRow = bitmap->pixelData + bitmap->width * (bitmap->height - 1);
+    u8 *destRow = (u8 *)backBuffer->memory + (minX * backBuffer->bytesPerPixel) + (minY * backBuffer->pitch);
+    for (s32 y = minY; y < maxY; ++y)
+    {
+        u32 *dest = (u32 *)destRow;
+        u32 *src = srcRow;
+        for (s32 x = minX; x < maxX; ++x)
+        {
+            
+            f32 a = (f32)((*src >> 24) & 0xFF) / 255.0f;
+            f32 srcR = (f32)((*src >> 16) & 0xFF);
+            f32 srcG = (f32)((*src >> 8) & 0xFF);
+            f32 srcB = (f32)(*src & 0xFF);
+            
+            f32 destR = (f32)((*dest >> 16) & 0xFF);
+            f32 destG = (f32)((*dest >> 8) & 0xFF);
+            f32 destB = (f32)(*dest & 0xFF);
+            
+            f32 r = (1.0f - a) * destR + (a * srcR);
+            f32 g = (1.0f - a) * destG + (a * srcG);
+            f32 b = (1.0f - a) * destB + (a * srcB);
+            
+            *dest = (((u32)(r + 0.5f) << 16) |
+                     ((u32)(g + 0.5f) << 8) |
+                     (u32)(b + 0.5f));
+            
+            ++dest;
+            ++src;
+        }
+        
+        destRow += backBuffer->pitch;
+        srcRow -= bitmap->width;
+    }
+}
+
 
 // NOTE(bSalmon): The Input, Update and Render functions were abstracted from Game_UpdateRender so that the server can use the same functions without the Rendering capability
 
@@ -124,7 +235,7 @@ internal_func void InitMap(Game_State *gameState, Game_Memory *memory)
                                         (tileMap->chunkDim * tileMap->chunkDim)) *
                                        tileMap->chunkCountZ), sizeof(u32));
     
-    Debug_ReadFileResult fileResult = memory->Debug_PlatformReadFile("../data/map1.usm");
+    Debug_ReadFileResult fileResult = memory->Debug_PlatformReadFile("map1.usm");
     
     if (fileResult.contents)
     {
@@ -209,6 +320,23 @@ internal_func b32 Input(Game_Input *input, Game_State *gameState, TileMap *tileM
             }
         }
         
+        if (deltaPlayerX < 0.0f)
+        {
+            gameState->playerDir = FACING_LEFT;
+        }
+        else if (deltaPlayerX > 0.0f)
+        {
+            gameState->playerDir = FACING_RIGHT;
+        }
+        else if (deltaPlayerY < 0.0f)
+        {
+            gameState->playerDir = FACING_BACK;
+        }
+        else if (deltaPlayerY > 0.0f)
+        {
+            gameState->playerDir = FACING_FRONT;
+        }
+        
         // TODO(bSalmon): Use vectors to fix movement speed
         TileMapPosition newPlayerPos = gameState->playerPos;
         newPlayerPos.tileRelX += input->deltaTime * deltaPlayerX;
@@ -252,7 +380,10 @@ internal_func b32 Input(Game_Input *input, Game_State *gameState, TileMap *tileM
 
 internal_func void Render(Game_BackBuffer *backBuffer, Game_State *gameState, TileMap *tileMap, f32 playerWidth, f32 playerHeight)
 {
+    gameState->cameraPos = gameState->playerPos;
+    
     DrawRect(backBuffer, 0.0f, 0.0f, (f32)backBuffer->width, (f32)backBuffer->height, 0xFF4C0296);
+    DrawBitmap(backBuffer, &gameState->background, 0, 0);
     
     f32 screenCenterX = 0.5f * (f32)backBuffer->width;
     f32 screenCenterY = 0.5f * (f32)backBuffer->height;
@@ -261,38 +392,41 @@ internal_func void Render(Game_BackBuffer *backBuffer, Game_State *gameState, Ti
     {
         for (s32 relX = -20; relX < 20; ++relX)
         {
-            u32 x = gameState->playerPos.absTileX + relX;
-            u32 y = gameState->playerPos.absTileY - relY;
-            u32 tileID = GetTileValue(tileMap, x, y, gameState->playerPos.absTileZ);
-            u32 tileColour = 0xFF888888;
-            if (tileID == TILE_WALL)
-            {
-                tileColour = 0xFFFFFFFF;
-            }
-            else if (tileID == TILE_STAIRS_UP)
-            {
-                tileColour = 0xFF00FFFF;
-            }
-            else if (tileID == TILE_STAIRS_DOWN)
-            {
-                tileColour = 0xFF008080;
-            }
+            u32 x = gameState->cameraPos.absTileX + relX;
+            u32 y = gameState->cameraPos.absTileY - relY;
+            u32 tileID = GetTileValue(tileMap, x, y, gameState->cameraPos.absTileZ);
             
-            if ((x == gameState->playerPos.absTileX) &&
-                (y == gameState->playerPos.absTileY))
+            if (tileID != TILE_EMPTY)
             {
-                tileColour = 0xFF000000;
+                u32 tileColour = 0xFF888888;
+                if (tileID == TILE_WALL)
+                {
+                    tileColour = 0xFFFFFFFF;
+                }
+                else if (tileID == TILE_STAIRS_UP)
+                {
+                    tileColour = 0xFF00FFFF;
+                }
+                else if (tileID == TILE_STAIRS_DOWN)
+                {
+                    tileColour = 0xFF008080;
+                }
+                
+                if ((x == gameState->playerPos.absTileX) &&
+                    (y == gameState->playerPos.absTileY))
+                {
+                    tileColour = 0xFF000000;
+                }
+                
+                f32 centerX = screenCenterX - (tileMap->metersToPixels * gameState->cameraPos.tileRelX) + ((f32)relX * tileMap->tileSidePixels);
+                f32 centerY = screenCenterY - (tileMap->metersToPixels * gameState->cameraPos.tileRelY) - ((f32)relY * tileMap->tileSidePixels);
+                f32 minX = centerX - (0.5f * tileMap->tileSidePixels);
+                f32 minY = centerY - (0.5f * tileMap->tileSidePixels);
+                f32 maxX = centerX + (0.5f * tileMap->tileSidePixels);
+                f32 maxY = centerY + (0.5f * tileMap->tileSidePixels);
+                
+                DrawRect(backBuffer, minX, minY, minX + tileMap->tileSidePixels, minY + tileMap->tileSidePixels, tileColour);
             }
-            
-            
-            f32 centerX = screenCenterX - (tileMap->metersToPixels * gameState->playerPos.tileRelX) + ((f32)relX * tileMap->tileSidePixels);
-            f32 centerY = screenCenterY - (tileMap->metersToPixels * gameState->playerPos.tileRelY) - ((f32)relY * tileMap->tileSidePixels);
-            f32 minX = centerX - (0.5f * tileMap->tileSidePixels);
-            f32 minY = centerY - (0.5f * tileMap->tileSidePixels);
-            f32 maxX = centerX + (0.5f * tileMap->tileSidePixels);
-            f32 maxY = centerY + (0.5f * tileMap->tileSidePixels);
-            
-            DrawRect(backBuffer, minX, minY, minX + tileMap->tileSidePixels, minY + tileMap->tileSidePixels, tileColour);
         }
     }
     
@@ -300,6 +434,12 @@ internal_func void Render(Game_BackBuffer *backBuffer, Game_State *gameState, Ti
     f32 playerTop = screenCenterY - (tileMap->metersToPixels * playerHeight);
     
     DrawRect(backBuffer, playerLeft, playerTop, playerLeft + (tileMap->metersToPixels * playerWidth), playerTop + (tileMap->metersToPixels * playerHeight), 0xFF0000FF);
+    
+    CharacterBitmaps *charBitmaps = &gameState->playerBitmaps[gameState->playerDir];
+    DrawBitmap(backBuffer, &charBitmaps->head, screenCenterX, screenCenterY, charBitmaps->alignX, charBitmaps->alignY);
+    DrawBitmap(backBuffer, &charBitmaps->torso, screenCenterX, screenCenterY, charBitmaps->alignX, charBitmaps->alignY);
+    DrawBitmap(backBuffer, &charBitmaps->legs, screenCenterX, screenCenterY, charBitmaps->alignX, charBitmaps->alignY);
+    DrawBitmap(backBuffer, &charBitmaps->feet, screenCenterX, screenCenterY, charBitmaps->alignX, charBitmaps->alignY);
 }
 
 extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
@@ -309,7 +449,32 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
     Game_State *gameState = (Game_State *)memory->permanentStorage;
     if (!memory->memInitialised)
     {
+        gameState->background = Debug_LoadBMP("test/test_screen.bmp", memory->Debug_PlatformReadFile);
+        
+        gameState->playerBitmaps[FACING_FRONT].head = Debug_LoadBMP("test/test_headF.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_FRONT].torso = Debug_LoadBMP("test/test_torsoF.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_FRONT].legs = Debug_LoadBMP("test/test_legsF.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_FRONT].feet = Debug_LoadBMP("test/test_feet.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_FRONT].alignX = 72;
+        gameState->playerBitmaps[FACING_FRONT].alignY = 182;
+        
+        gameState->playerBitmaps[FACING_LEFT] = gameState->playerBitmaps[0];
+        gameState->playerBitmaps[FACING_LEFT].head = Debug_LoadBMP("test/test_headL.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_LEFT].torso = Debug_LoadBMP("test/test_torsoL.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_LEFT].legs = Debug_LoadBMP("test/test_legsL.bmp", memory->Debug_PlatformReadFile);
+        
+        gameState->playerBitmaps[FACING_BACK] = gameState->playerBitmaps[0];
+        gameState->playerBitmaps[FACING_BACK].head = Debug_LoadBMP("test/test_headB.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_BACK].torso = Debug_LoadBMP("test/test_torsoB.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_BACK].legs = Debug_LoadBMP("test/test_legsB.bmp", memory->Debug_PlatformReadFile);
+        
+        gameState->playerBitmaps[FACING_RIGHT] = gameState->playerBitmaps[0];
+        gameState->playerBitmaps[FACING_RIGHT].head = Debug_LoadBMP("test/test_headR.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_RIGHT].torso = Debug_LoadBMP("test/test_torsoR.bmp", memory->Debug_PlatformReadFile);
+        gameState->playerBitmaps[FACING_RIGHT].legs = Debug_LoadBMP("test/test_legsR.bmp", memory->Debug_PlatformReadFile);
+        
         gameState->playerPos = {};
+        gameState->cameraPos = gameState->playerPos;
         
         InitMap(gameState, memory);
         
@@ -334,6 +499,7 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
     }
     
     Render(backBuffer, gameState, tileMap, playerWidth, playerHeight);
+    
 }
 
 extern "C" GAME_GET_AUDIO_SAMPLES(Game_GetAudioSamples)

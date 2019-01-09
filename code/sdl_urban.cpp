@@ -31,6 +31,7 @@ the Game's Update and Render loop is able to be built on top of it
 #include "sdl_urban_dev.cpp"
 
 #include <stdio.h>
+#include <direct.h>
 
 #define MAX_CONTROLLERS 2
 global_var SDLPL_BackBuffer globalBackBuffer = {};
@@ -531,6 +532,8 @@ internal_func void SDLPL_HandleEvent(SDL_Event *event, SDL_GameController **cont
 
 s32 main(s32 argc, char *argv[])
 {
+    _chdir("../data");
+    
     u32 sdlInitFlags = (SDL_INIT_VIDEO |
                         SDL_INIT_GAMECONTROLLER |
                         SDL_INIT_AUDIO |
@@ -553,7 +556,7 @@ s32 main(s32 argc, char *argv[])
     }
     
     // NOTE(bSalmon): This is necessary due to some incorrect behaviour with some Controller Axis'
-    SDL_GameControllerAddMappingsFromFile("../gamecontrollerdb.txt");
+    SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");
     
     u64 perfCountFreq = SDL_GetPerformanceFrequency();
     

@@ -144,18 +144,25 @@ internal_func LoadedBitmap Debug_LoadBMP(char *filename, debug_platformReadFile 
 
 internal_func void DrawBitmap(Game_BackBuffer *backBuffer, LoadedBitmap *bitmap, f32 fX, f32 fY, s32 alignX = 0, s32 alignY = 0)
 {
-    s32 minX = RoundF32ToS32(fX) + alignX;
-    s32 minY = RoundF32ToS32(fY) + alignY;
+    fX -= (f32)alignX;
+    fY -= (f32)alignY;
+    
+    s32 minX = RoundF32ToS32(fX);
+    s32 minY = RoundF32ToS32(fY);
     s32 maxX = RoundF32ToS32(fX + (f32)bitmap->width);
     s32 maxY = RoundF32ToS32(fY + (f32)bitmap->height);
     
+    s32 srcOffsetX = 0;
     if (minX < 0)
     {
+        srcOffsetX = -minX;
         minX = 0;
     }
     
+    s32 srcOffsetY = 0;
     if (minY < 0)
     {
+        srcOffsetY = -minY;
         minY = 0;
     }
     
@@ -170,6 +177,7 @@ internal_func void DrawBitmap(Game_BackBuffer *backBuffer, LoadedBitmap *bitmap,
     }
     
     u32 *srcRow = bitmap->pixelData + bitmap->width * (bitmap->height - 1);
+    srcRow += srcOffsetY * bitmap->width + srcOffsetX;
     u8 *destRow = (u8 *)backBuffer->memory + (minX * backBuffer->bytesPerPixel) + (minY * backBuffer->pitch);
     for (s32 y = minY; y < maxY; ++y)
     {

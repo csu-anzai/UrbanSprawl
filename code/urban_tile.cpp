@@ -15,6 +15,38 @@ inline u32 GetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 
     return result;
 }
 
+internal_func u32 GetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile)
+{
+    u32 result = 0;
+    
+    if (chunk && chunk->tiles)
+    {
+        result = GetTileValueUnchecked(tileMap, chunk, tile.x, tile.y);
+    }
+    
+    return result;
+}
+
+internal_func u32 GetTileValue(TileMap *tileMap, v3<u32> tilePos)
+{
+    u32 result = 0;
+    
+    TileChunkPosition chunkPos = GetChunkPosition(tileMap, tilePos);
+    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
+    result = GetTileValue(tileMap, chunk, chunkPos.relTile);
+    
+    return result;
+}
+
+internal_func u32 GetTileValue(TileMap *tileMap, TileMapPosition pos)
+{
+    u32 result = 0;
+    
+    result = GetTileValue(tileMap, pos.absTile);
+    
+    return result;
+}
+
 inline void SetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y, u32 tileValue)
 {
     ASSERT(chunk);
@@ -24,83 +56,18 @@ inline void SetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32
     chunk->tiles[x + (tileMap->chunkDim * y)] = tileValue;
 }
 
-inline void RecanonicaliseCoord(TileMap *tileMap, u32 *tile, f32 *tileRel)
-{
-    s32 offset = RoundF32ToS32(*tileRel / tileMap->tileSideMeters);
-    *tile += offset;
-    *tileRel -= offset * tileMap->tileSideMeters;
-    
-    ASSERT(*tileRel >= -0.5f * tileMap->tileSideMeters);
-    ASSERT(*tileRel <= 0.5f * tileMap->tileSideMeters);
-}
-
-internal_func u32 GetTileValue(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y)
-{
-    u32 result = 0;
-    
-    if (chunk && chunk->tiles)
-    {
-        result = GetTileValueUnchecked(tileMap, chunk, x, y);
-    }
-    
-    return result;
-}
-
-internal_func void SetTileValue(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y, u32 tileValue)
+internal_func void SetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile, u32 tileValue)
 {
     if (chunk && chunk->tiles)
     {
-        SetTileValueUnchecked(tileMap, chunk, x, y, tileValue);
+        SetTileValueUnchecked(tileMap, chunk, tile.x, tile.y, tileValue);
     }
 }
 
-internal_func u32 GetTileValue(TileMap *tileMap, u32 x, u32 y, u32 z)
+internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, v3<u32> tilePos, u32 tileValue)
 {
-    u32 result = 0;
-    
-    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, z);
-    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
-    result = GetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY);
-    
-    return result;
-}
-
-internal_func u32 GetTileValue(TileMap *tileMap, TileMapPosition pos)
-{
-    u32 result = 0;
-    
-    result = GetTileValue(tileMap, pos.absTileX, pos.absTileY, pos.absTileZ);
-    
-    return result;
-}
-
-internal_func b32 IsTileMapPointValid(TileMap *tileMap, TileMapPosition tileMapPos)
-
-{
-    b32 result = false;
-    
-    u32 tileValue = GetTileValue(tileMap, tileMapPos.absTileX, tileMapPos.absTileY, tileMapPos.absTileZ);
-    result = ((tileValue == TILE_WALKABLE) ||
-              (tileValue == TILE_STAIRS_UP) ||
-              (tileValue == TILE_STAIRS_DOWN));
-    
-    return result;
-}
-
-internal_func TileMapPosition RecanonicalisePos(TileMap *tileMap, TileMapPosition tileMapPos)
-{
-    TileMapPosition result = tileMapPos;
-    
-    RecanonicaliseCoord(tileMap, &result.absTileX, &result.tileRelX);
-    RecanonicaliseCoord(tileMap, &result.absTileY, &result.tileRelY);
-    
-    return result;
-}
-
-internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, u32 x, u32 y, u32 z, u32 tileValue)
-{
-    TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, z);
-    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
+    TileChunkPosition chunkPos = GetChunkPosition(tileMap, tilePos);
+    TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
     
     ASSERT(chunk);
     if (!chunk->tiles)
@@ -113,5 +80,37 @@ internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, u32 x
         }
     }
     
-    SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, tileValue);
+    SetTileValue(tileMap, chunk, chunkPos.relTile, tileValue);
+}
+
+inline void RecanonicaliseCoord(TileMap *tileMap, u32 *tile, f32 *tileRel)
+{
+    s32 offset = RoundF32ToS32(*tileRel / tileMap->tileSideMeters);
+    *tile += offset;
+    *tileRel -= offset * tileMap->tileSideMeters;
+    
+    ASSERT(*tileRel >= -0.5f * tileMap->tileSideMeters);
+    ASSERT(*tileRel <= 0.5f * tileMap->tileSideMeters);
+}
+
+internal_func b32 IsTileMapPointValid(TileMap *tileMap, TileMapPosition tileMapPos)
+{
+    b32 result = false;
+    
+    u32 tileValue = GetTileValue(tileMap, tileMapPos.absTile);
+    result = ((tileValue == TILE_WALKABLE) ||
+              (tileValue == TILE_STAIRS_UP) ||
+              (tileValue == TILE_STAIRS_DOWN));
+    
+    return result;
+}
+
+internal_func TileMapPosition RecanonicalisePos(TileMap *tileMap, TileMapPosition tileMapPos)
+{
+    TileMapPosition result = tileMapPos;
+    
+    RecanonicaliseCoord(tileMap, &result.absTile.x, &result.tileRel.x);
+    RecanonicaliseCoord(tileMap, &result.absTile.y, &result.tileRel.y);
+    
+    return result;
 }

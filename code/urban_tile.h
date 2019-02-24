@@ -7,14 +7,12 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #ifndef URBAN_TILE_H
 
+#include "urban_math.h"
+
 struct TileChunkPosition
 {
-    u32 chunkX;
-    u32 chunkY;
-    u32 chunkZ;
-    
-    u32 relTileX;
-    u32 relTileY;
+    v3<u32> chunk;
+    v2<u32> relTile;
 };
 
 struct TileChunk
@@ -25,9 +23,7 @@ struct TileChunk
 
 struct TileMap
 {
-    u32 chunkCountX;
-    u32 chunkCountY;
-    u32 chunkCountZ;
+    v3<u32> chunkCount;
     
     u32 chunkShift;
     u32 chunkMask;
@@ -44,14 +40,10 @@ struct TileMapPosition
 {
     // NOTE(bSalmon): Fixed point tile locations, 
     // high bytes are the chunk index, low bytes are the tile index within the chunk
-    u32 absTileX;
-    u32 absTileY;
-    u32 absTileZ;
+    v3<u32> absTile;
     
     // NOTE(bSalmon): Still in pixels
-    f32 tileRelX;
-    f32 tileRelY;
-    f32 tileRelZ;
+    v2<f32> tileRel;
 };
 
 enum TileType
@@ -63,32 +55,30 @@ enum TileType
     TILE_STAIRS_DOWN
 };
 
-inline TileChunk *GetTileChunk(TileMap *tileMap, u32 chunkX, u32 chunkY, u32 chunkZ)
+inline TileChunk *GetTileChunk(TileMap *tileMap, v3<u32> chunk)
 {
     TileChunk *result = 0;
     
-    if ((chunkX < tileMap->chunkCountX) &&
-        (chunkY < tileMap->chunkCountY) &&
-        (chunkZ < tileMap->chunkCountZ))
+    if (chunk < tileMap->chunkCount)
     {
-        result = &tileMap->chunks[chunkX + 
-                (tileMap->chunkCountX * chunkY) + 
-                (tileMap->chunkCountX * tileMap->chunkCountY * chunkZ)];
+        result = &tileMap->chunks[chunk.x + 
+                (tileMap->chunkCount.x * chunk.y) + 
+                (tileMap->chunkCount.x * tileMap->chunkCount.y * chunk.z)];
     }
     
     return result;
 }
 
-inline TileChunkPosition GetChunkPosition(TileMap *tileMap, u32 absTileX, u32 absTileY, u32 absTileZ)
+inline TileChunkPosition GetChunkPosition(TileMap *tileMap, v3<u32> absTile)
 {
     TileChunkPosition result = {};
     
-    result.chunkX = absTileX >> tileMap->chunkShift;
-    result.chunkY = absTileY >> tileMap->chunkShift;
-    result.chunkZ = absTileZ;
+    result.chunk.x = absTile.x >> tileMap->chunkShift;
+    result.chunk.y = absTile.y >> tileMap->chunkShift;
+    result.chunk.z = absTile.z;
     
-    result.relTileX = absTileX & tileMap->chunkMask;
-    result.relTileY = absTileY & tileMap->chunkMask;
+    result.relTile.x = absTile.x & tileMap->chunkMask;
+    result.relTile.y = absTile.y & tileMap->chunkMask;
     
     return result;
 }
@@ -97,9 +87,7 @@ inline b32 OnSameTile(TileMapPosition *a, TileMapPosition *b)
 {
     b32 result = false;
     
-    result = ((a->absTileX == b->absTileX) &&
-              (a->absTileY == b->absTileY) &&
-              (a->absTileZ == b->absTileZ));
+    result = (a->absTile == b->absTile);
     
     return result;
 }

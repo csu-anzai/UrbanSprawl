@@ -529,7 +529,6 @@ internal_func void SDLPL_HandleEvent(SDL_Event *event, SDL_GameController **cont
     
 }
 
-
 s32 main(s32 argc, char *argv[])
 {
     _chdir("../data");
@@ -548,6 +547,12 @@ s32 main(s32 argc, char *argv[])
         printf("SDLNet_Init Failed: %s\n", SDLNet_GetError());
         return 2;
     }
+    
+#if URBAN_INTERNAL
+    SDL_ShowCursor(SDL_ENABLE);
+#else
+    SDL_ShowCursor(SDL_DISABLE);
+#endif
     
     b32 multiplayer = false;
     if (argc >= 2)

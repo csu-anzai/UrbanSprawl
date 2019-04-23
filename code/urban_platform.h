@@ -8,7 +8,8 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #ifndef URBAN_PLATFORM_H
 
 #define PORT 1842
-#define INCOMING_PACKET_SIZE 128
+#define INCOMING_CONNECTION_PACKET_SIZE KILOBYTES(10)
+#define INCOMING_PACKET_SIZE 512
 
 // Static Definitions
 #define internal_func static
@@ -154,10 +155,10 @@ struct Game_Memory
 
 struct Game_NetworkPacket
 {
-    u8 data[INCOMING_PACKET_SIZE];
+    u8 *data;
 };
 
-#define GAME_UPDATE_RENDER(funcName) void funcName(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory, b32 multiplayer, Game_NetworkPacket *networkPacket)
+#define GAME_UPDATE_RENDER(funcName) void funcName(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory, b32 multiplayer, b32 isConnectPacket, Game_NetworkPacket *networkPacket, u8 clientID)
 typedef GAME_UPDATE_RENDER(game_updateRender);
 
 #define GAME_GET_AUDIO_SAMPLES(funcName) void funcName(Game_Memory *memory, Game_AudioBuffer *audioBuffer)

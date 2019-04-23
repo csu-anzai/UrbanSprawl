@@ -33,6 +33,8 @@ inline void *SetMem(void *block, u8 value, mem_index size)
     return block;
 }
 
+#define ZEROMEM(block, size) SetMem(block, 0, size)
+
 // Use CopyMem to copy variables into a data buffer and progress the index so the next slot can be filled
 // (and vice versa)
 template <class block_type, class var_type>

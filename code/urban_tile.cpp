@@ -5,19 +5,19 @@ Author: Brock Salmon
 Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 */
 
-inline u32 GetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y)
+inline u8 GetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y)
 {
     ASSERT(chunk);
     ASSERT(x < tileMap->chunkDim);
     ASSERT(y < tileMap->chunkDim);
     
-    u32 result = chunk->tiles[x + (tileMap->chunkDim * y)];
+    u8 result = chunk->tiles[x + (tileMap->chunkDim * y)];
     return result;
 }
 
-internal_func u32 GetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile)
+internal_func u8 GetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile)
 {
-    u32 result = 0;
+    u8 result = 0;
     
     if (chunk && chunk->tiles)
     {
@@ -27,9 +27,9 @@ internal_func u32 GetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile)
     return result;
 }
 
-internal_func u32 GetTileValue(TileMap *tileMap, v3<u32> tilePos)
+internal_func u8 GetTileValue(TileMap *tileMap, v3<u32> tilePos)
 {
-    u32 result = 0;
+    u8 result = 0;
     
     TileChunkPosition chunkPos = GetChunkPosition(tileMap, tilePos);
     TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
@@ -38,16 +38,16 @@ internal_func u32 GetTileValue(TileMap *tileMap, v3<u32> tilePos)
     return result;
 }
 
-internal_func u32 GetTileValue(TileMap *tileMap, TileMapPosition pos)
+internal_func u8 GetTileValue(TileMap *tileMap, TileMapPosition pos)
 {
-    u32 result = 0;
+    u8 result = 0;
     
     result = GetTileValue(tileMap, pos.absTile);
     
     return result;
 }
 
-inline void SetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y, u32 tileValue)
+inline void SetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y, u8 tileValue)
 {
     ASSERT(chunk);
     ASSERT(x < tileMap->chunkDim);
@@ -56,7 +56,7 @@ inline void SetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32
     chunk->tiles[x + (tileMap->chunkDim * y)] = tileValue;
 }
 
-internal_func void SetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile, u32 tileValue)
+internal_func void SetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile, u8 tileValue)
 {
     if (chunk && chunk->tiles)
     {
@@ -64,7 +64,7 @@ internal_func void SetTileValue(TileMap *tileMap, TileChunk *chunk, v2<u32> tile
     }
 }
 
-internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, v3<u32> tilePos, u32 tileValue)
+internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, v3<u32> tilePos, u8 tileValue)
 {
     TileChunkPosition chunkPos = GetChunkPosition(tileMap, tilePos);
     TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
@@ -73,10 +73,10 @@ internal_func void SetTileValue(MemoryRegion *memRegion, TileMap *tileMap, v3<u3
     if (!chunk->tiles)
     {
         u32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
-        chunk->tiles = PushArray(memRegion, tileCount, u32);
+        chunk->tiles = PushArray(memRegion, tileCount, u8);
         for (u32 tileIndex = 0; tileIndex < tileCount; ++tileIndex)
         {
-            chunk->tiles[tileIndex] = TILE_WALKABLE;
+            chunk->tiles[tileIndex] = TILE_EMPTY;
         }
     }
     

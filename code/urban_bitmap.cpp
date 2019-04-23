@@ -76,7 +76,7 @@ internal_func void DrawBitmap(Game_BackBuffer *backBuffer, LoadedBitmap *bitmap,
     s32 srcOffsetY = 0;
     if (minY < 0)
     {
-        srcOffsetY = -minY;
+        srcOffsetY = minY;
         minY = 0;
     }
     

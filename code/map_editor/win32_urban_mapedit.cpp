@@ -88,17 +88,17 @@ internal_func void Win32_InitMenus(HWND window, Win32_Menus *menus)
     SetMenu(window, menuBar);
 }
 
-internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, TileMap *tileMap, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 gridColour)
+internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, TileMap *tileMap, v2<s32> min, v2<s32> max, u32 gridColour)
 {
     // Draw Border
-    Win32_DrawHorizontalLine(backBuffer, minY, minX, maxX, 0xFFFF0000);
-    Win32_DrawHorizontalLine(backBuffer, maxY, minX, maxX, 0xFFFF0000);
-    Win32_DrawVerticalLine(backBuffer, minX, minY, maxY, 0xFFFF0000);
-    Win32_DrawVerticalLine(backBuffer, maxX, minY, maxY, 0xFFFF0000);
+    Win32_DrawHorizontalLine(backBuffer, min.y, min.x, max.x, 0xFFFF0000);
+    Win32_DrawHorizontalLine(backBuffer, max.y, min.x, max.x, 0xFFFF0000);
+    Win32_DrawVerticalLine(backBuffer, min.x, min.y, max.y, 0xFFFF0000);
+    Win32_DrawVerticalLine(backBuffer, max.x, min.y, max.y, 0xFFFF0000);
     
     // Draw Grid Lines
     u32 chunkCounterX = 0;
-    for (f32 x = ((f32)minX + mapInfo->tileSide); x < maxX; x += mapInfo->tileSide)
+    for (f32 x = ((f32)min.x + mapInfo->tileSide); x < max.x; x += mapInfo->tileSide)
     {
         ++chunkCounterX;
         
@@ -107,7 +107,7 @@ internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo
             gridColour = 0xFFFF0000;
         }
         
-        Win32_DrawVerticalLine(backBuffer, (s32)x, minY, maxY, gridColour);
+        Win32_DrawVerticalLine(backBuffer, (s32)x, min.y, max.y, gridColour);
         
         if (chunkCounterX == tileMap->chunkDim)
         {
@@ -117,7 +117,7 @@ internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo
     }
     
     u32 chunkCounterY = 0;
-    for (f32 y = ((f32)minY + mapInfo->tileSide); y < maxY; y += mapInfo->tileSide)
+    for (f32 y = ((f32)min.y + mapInfo->tileSide); y < max.y; y += mapInfo->tileSide)
     {
         ++chunkCounterY;
         
@@ -126,7 +126,7 @@ internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo
             gridColour = 0xFFFF0000;
         }
         
-        Win32_DrawHorizontalLine(backBuffer, (s32)y, minX, maxX, gridColour);
+        Win32_DrawHorizontalLine(backBuffer, (s32)y, min.x, max.x, gridColour);
         
         if (chunkCounterY == tileMap->chunkDim)
         {
@@ -136,31 +136,31 @@ internal_func void Win32_DrawMapGrid(Win32_BackBuffer *backBuffer, Win32_MapInfo
     }
 }
 
-internal_func void Win32_FillRect(TileMap *tileMap, Win32_MapInfo *mapInfo, u32 absTileMinX, u32 absTileMinY, u32 absTileMaxX, u32 absTileMaxY, u32 tileID)
+internal_func void Win32_FillRect(TileMap *tileMap, Win32_MapInfo *mapInfo, v2<u32> absTileMin, v2<u32> absTileMax, u8 tileID)
 {
-    for (u32 y = absTileMinY; y <= absTileMaxY; ++y)
+    for (u32 y = absTileMin.y; y <= absTileMax.y; ++y)
     {
-        for (u32 x = absTileMinX; x <= absTileMaxX; ++x)
+        for (u32 x = absTileMin.x; x <= absTileMax.x; ++x)
         {
-            TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, mapInfo->currZ);
-            TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
-            SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, tileID);
+            TileChunkPosition chunkPos = GetChunkPosition(tileMap, v3<u32>{x, y, mapInfo->currZ});
+            TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
+            SetTileValue(tileMap, chunk, chunkPos.relTile, tileID);
         }
     }
 }
 
-internal_func void ProcessRectCursor(Win32_Input *input, Win32_MapInfo *mapInfo, TileMap *tileMap, u32 x, u32 y, f32 minX, f32 minY, f32 maxX, f32 maxY)
+internal_func void ProcessRectCursor(Win32_Input *input, Win32_MapInfo *mapInfo, TileMap *tileMap, v2<u32> rectPos, v2<f32> min, v2<f32> max)
 {
     local_persist u32 absTileTop = 0;
     local_persist u32 absTileBottom = 0;
     local_persist u32 absTileLeft = 0;
     local_persist u32 absTileRight = 0;
     
-    if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
-        (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+    if ((input->mouseLoc.x >= min.x) && (input->mouseLoc.x < max.x) &&
+        (input->mouseLoc.y >= min.y) && (input->mouseLoc.y < max.y))
     {
-        TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, mapInfo->currZ);
-        TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
+        TileChunkPosition chunkPos = GetChunkPosition(tileMap, v3<u32>{rectPos.x, rectPos.y, mapInfo->currZ});
+        TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
         
         if (!input->topLeftSet)
         {
@@ -168,9 +168,9 @@ internal_func void ProcessRectCursor(Win32_Input *input, Win32_MapInfo *mapInfo,
             {
                 if (input->priCursor != TILE_STAIRS_UP && input->priCursor != TILE_STAIRS_DOWN)
                 {
-                    SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, 0xFFFFFFFF);
-                    absTileTop = y;
-                    absTileLeft = x;
+                    SetTileValue(tileMap, chunk, chunkPos.relTile, 0xFF);
+                    absTileTop = rectPos.y;
+                    absTileLeft = rectPos.x;
                     input->topLeftSet = true;
                 }
                 
@@ -181,8 +181,8 @@ internal_func void ProcessRectCursor(Win32_Input *input, Win32_MapInfo *mapInfo,
         {
             if (input->priClicked)
             {
-                absTileBottom = y;
-                absTileRight = x;
+                absTileBottom = rectPos.y;
+                absTileRight = rectPos.x;
                 
                 // Swap axis values if the user's second click is above or to the left of the first
                 if (absTileTop > absTileBottom)
@@ -195,7 +195,7 @@ internal_func void ProcessRectCursor(Win32_Input *input, Win32_MapInfo *mapInfo,
                     SWAP(absTileLeft, absTileRight);
                 }
                 
-                Win32_FillRect(tileMap, mapInfo, absTileLeft, absTileTop, absTileRight, absTileBottom, input->priCursor);
+                Win32_FillRect(tileMap, mapInfo, v2<u32>{absTileLeft, absTileTop}, v2<u32>{absTileRight, absTileBottom}, input->priCursor);
                 
                 input->topLeftSet = false;
                 input->priClicked = false;
@@ -206,55 +206,55 @@ internal_func void ProcessRectCursor(Win32_Input *input, Win32_MapInfo *mapInfo,
 
 internal_func void Win32_UpdateRenderEditorMap(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, TileMap *tileMap, Win32_Input *input)
 {
-    u32 beginningOfSegmentX = mapInfo->currSegmentX * mapInfo->segmentDimTiles;
-    u32 beginningOfSegmentY = mapInfo->currSegmentY * mapInfo->segmentDimTiles;
+    v2<u32> beginningOfSegment = mapInfo->currSegment * mapInfo->segmentDimTiles;
     
-    for (u32 y = beginningOfSegmentY; y < (beginningOfSegmentY + mapInfo->segmentDimTiles); ++y)
+    for (u32 y = beginningOfSegment.y; y < (beginningOfSegment.y + mapInfo->segmentDimTiles); ++y)
     {
-        for (u32 x = beginningOfSegmentX; x < (beginningOfSegmentX + mapInfo->segmentDimTiles); ++x)
+        for (u32 x = beginningOfSegment.x; x < (beginningOfSegment.x + mapInfo->segmentDimTiles); ++x)
         {
-            u32 tileID = GetTileValue(tileMap, x, y, mapInfo->currZ);
+            u8 tileID = GetTileValue(tileMap, v3<u32>{x, y, mapInfo->currZ});
             
-            f32 minX = (f32)(mapInfo->gridLeft + ((x - beginningOfSegmentX) * mapInfo->tileSide));
-            f32 minY = (f32)(mapInfo->gridTop + ((y - beginningOfSegmentY) * mapInfo->tileSide));
-            f32 maxX = (f32)(minX + mapInfo->tileSide);
-            f32 maxY = (f32)(minY + mapInfo->tileSide);
+            v2<f32> min = {};
+            min.x = (f32)(mapInfo->gridLeft + ((x - beginningOfSegment.x) * mapInfo->tileSide));
+            min.y = (f32)(mapInfo->gridTop + ((y - beginningOfSegment.y) * mapInfo->tileSide));
+            
+            v2<f32> max = min + mapInfo->tileSide;
             
             if (input->priClicked || input->secClicked)
             {
                 if (!input->rectCursor)
                 {
-                    if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
-                        (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+                    if ((input->mouseLoc.x >= min.x) && (input->mouseLoc.x < max.x) &&
+                        (input->mouseLoc.y >= min.y) && (input->mouseLoc.y < max.y))
                     {
-                        TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, mapInfo->currZ);
-                        TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
+                        TileChunkPosition chunkPos = GetChunkPosition(tileMap, v3<u32>{x, y, mapInfo->currZ});
+                        TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
                         
                         if (input->priClicked)
                         {
                             if (input->priCursor != TILE_STAIRS_UP && input->priCursor != TILE_STAIRS_DOWN)
                             {
-                                SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, input->priCursor);
+                                SetTileValue(tileMap, chunk, chunkPos.relTile, input->priCursor);
                             }
                             else
                             {
-                                if (input->priCursor == TILE_STAIRS_UP && mapInfo->currZ != tileMap->chunkCountZ)
+                                if (input->priCursor == TILE_STAIRS_UP && mapInfo->currZ != tileMap->chunkCount.z)
                                 {
-                                    SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, input->priCursor);
+                                    SetTileValue(tileMap, chunk, chunkPos.relTile, input->priCursor);
                                     
-                                    TileChunkPosition altChunkPos = GetChunkPosition(tileMap, x, y, mapInfo->currZ + 1);
-                                    TileChunk *altChunk = GetTileChunk(tileMap, altChunkPos.chunkX, altChunkPos.chunkY, altChunkPos.chunkZ);
+                                    TileChunkPosition altChunkPos = GetChunkPosition(tileMap, v3<u32>{x, y, mapInfo->currZ + 1});
+                                    TileChunk *altChunk = GetTileChunk(tileMap, altChunkPos.chunk);
                                     
-                                    SetTileValue(tileMap, altChunk, chunkPos.relTileX, chunkPos.relTileY, TILE_STAIRS_DOWN);
+                                    SetTileValue(tileMap, altChunk, chunkPos.relTile, TILE_STAIRS_DOWN);
                                 }
                                 else if (input->priCursor == TILE_STAIRS_DOWN && mapInfo->currZ != 0)
                                 {
-                                    SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, input->priCursor);
+                                    SetTileValue(tileMap, chunk, chunkPos.relTile, input->priCursor);
                                     
-                                    TileChunkPosition altChunkPos = GetChunkPosition(tileMap, x, y, mapInfo->currZ - 1);
-                                    TileChunk *altChunk = GetTileChunk(tileMap, altChunkPos.chunkX, altChunkPos.chunkY, altChunkPos.chunkZ);
+                                    TileChunkPosition altChunkPos = GetChunkPosition(tileMap, v3<u32>{x, y, mapInfo->currZ - 1});
+                                    TileChunk *altChunk = GetTileChunk(tileMap, altChunkPos.chunk);
                                     
-                                    SetTileValue(tileMap, altChunk, chunkPos.relTileX, chunkPos.relTileY, TILE_STAIRS_UP);
+                                    SetTileValue(tileMap, altChunk, chunkPos.relTile, TILE_STAIRS_UP);
                                 }
                             }
                             
@@ -262,14 +262,14 @@ internal_func void Win32_UpdateRenderEditorMap(Win32_BackBuffer *backBuffer, Win
                         }
                         else if (input->secClicked)
                         {
-                            SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, input->secCursor);
+                            SetTileValue(tileMap, chunk, chunkPos.relTile, input->secCursor);
                             input->secClicked = false;
                         }
                     }
                 }
                 else
                 {
-                    ProcessRectCursor(input, mapInfo, tileMap, x, y, minX, minY, maxX, maxY);
+                    ProcessRectCursor(input, mapInfo, tileMap, v2<u32>{x, y}, min, max);
                 }
             }
             
@@ -295,41 +295,39 @@ internal_func void Win32_UpdateRenderEditorMap(Win32_BackBuffer *backBuffer, Win
                 tileColour = 0xFF00FF00;
             }
             
-            DrawRect(backBuffer, minX, minY, maxX, maxY, tileColour);
+            DrawRect(backBuffer, min, max, tileColour);
         }
     }
     
-    Win32_DrawMapGrid(backBuffer, mapInfo, tileMap, mapInfo->gridLeft, mapInfo->gridTop, mapInfo->gridRight, mapInfo->gridBottom, 0xFFFFFFFF);
+    Win32_DrawMapGrid(backBuffer, mapInfo, tileMap, v2<s32>{mapInfo->gridLeft, mapInfo->gridTop}, v2<s32>{mapInfo->gridRight, mapInfo->gridBottom}, 0xFFFFFFFF);
 }
 
 internal_func void Win32_DrawSelectorGrid(Win32_BackBuffer *backBuffer, Win32_SelectorInfo *selectorInfo, u32 gridColour)
 {
-    s32 minX = selectorInfo->gridLeft;
-    s32 maxX = selectorInfo->gridRight;
-    s32 minY = selectorInfo->gridTop;
-    s32 maxY = selectorInfo->gridBottom;
+    v2<s32> min = {selectorInfo->gridLeft, selectorInfo->gridTop};
+    v2<s32> max = {selectorInfo->gridRight, selectorInfo->gridBottom};
     
     // Draw Border
-    Win32_DrawHorizontalLine(backBuffer, minY, minX, maxX, 0xFF00FF00);
-    Win32_DrawHorizontalLine(backBuffer, maxY, minX, maxX, 0xFF00FF00);
-    Win32_DrawVerticalLine(backBuffer, minX, minY, maxY, 0xFF00FF00);
-    Win32_DrawVerticalLine(backBuffer, maxX, minY, maxY, 0xFF00FF00);
+    Win32_DrawHorizontalLine(backBuffer, min.y, min.x, max.x, 0xFF00FF00);
+    Win32_DrawHorizontalLine(backBuffer, max.y, min.x, max.x, 0xFF00FF00);
+    Win32_DrawVerticalLine(backBuffer, min.x, min.y, max.y, 0xFF00FF00);
+    Win32_DrawVerticalLine(backBuffer, max.x, min.y, max.y, 0xFF00FF00);
     
     // Draw Grid Lines
-    for (f32 x = ((f32)minX + selectorInfo->tileSide); x < maxX; x += selectorInfo->tileSide)
+    for (f32 x = ((f32)min.x + selectorInfo->tileSide); x < max.x; x += selectorInfo->tileSide)
     {
-        Win32_DrawVerticalLine(backBuffer, (s32)x, minY, maxY, gridColour);
+        Win32_DrawVerticalLine(backBuffer, (s32)x, min.y, max.y, gridColour);
     }
     
-    for (f32 y = ((f32)minY + selectorInfo->tileSide); y < maxY; y += selectorInfo->tileSide)
+    for (f32 y = ((f32)min.y + selectorInfo->tileSide); y < max.y; y += selectorInfo->tileSide)
     {
-        Win32_DrawHorizontalLine(backBuffer, (s32)y, minX, maxX, gridColour);
+        Win32_DrawHorizontalLine(backBuffer, (s32)y, min.x, max.x, gridColour);
     }
     
     // Draw Selected Square
-    s32 selectedSquareTop = (s32)((f32)minY + (selectorInfo->tileSide * (f32)selectorInfo->currSelection->y));
+    s32 selectedSquareTop = (s32)((f32)min.y + (selectorInfo->tileSide * (f32)selectorInfo->currSelection->y));
     s32 selectedSquareBottom = (s32)(selectedSquareTop + selectorInfo->tileSide);
-    s32 selectedSquareLeft = (s32)((f32)minX + (selectorInfo->tileSide * (f32)selectorInfo->currSelection->x));
+    s32 selectedSquareLeft = (s32)((f32)min.x + (selectorInfo->tileSide * (f32)selectorInfo->currSelection->x));
     s32 selectedSquareRight = (s32)(selectedSquareLeft + selectorInfo->tileSide);
     
     Win32_DrawHorizontalLine(backBuffer, selectedSquareTop, selectedSquareLeft, selectedSquareRight, 0xFFFF0000);
@@ -344,34 +342,34 @@ internal_func void Win32_UpdateRenderSelector(Win32_BackBuffer *backBuffer, Win3
     {
         for (u32 x = 0; x < (selectorInfo->gridLineCount + 1); ++x)
         {
-            f32 minX = (f32)(selectorInfo->gridLeft + (x * selectorInfo->tileSide));
-            f32 minY = (f32)(selectorInfo->gridTop + (y * selectorInfo->tileSide));
-            f32 maxX = (f32)(minX + selectorInfo->tileSide);
-            f32 maxY = (f32)(minY + selectorInfo->tileSide);
+            v2<f32> min = {(f32)(selectorInfo->gridLeft + (x * selectorInfo->tileSide)),
+                (f32)(selectorInfo->gridTop + (y * selectorInfo->tileSide))};
+            
+            v2<f32> max = min + selectorInfo->tileSide;
             
             if (input->priClicked)
             {
-                if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
-                    (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+                if ((input->mouseLoc.x >= min.x) && (input->mouseLoc.x < max.x) &&
+                    (input->mouseLoc.y >= min.y) && (input->mouseLoc.y < max.y))
                 {
-                    selectorInfo->currSelection->x = (s32)((minX - selectorInfo->gridLeft) / selectorInfo->tileSide);
-                    selectorInfo->currSelection->y = (s32)((minY - selectorInfo->gridTop) / selectorInfo->tileSide);
+                    selectorInfo->currSelection->x = (s32)((min.x - selectorInfo->gridLeft) / selectorInfo->tileSide);
+                    selectorInfo->currSelection->y = (s32)((min.y - selectorInfo->gridTop) / selectorInfo->tileSide);
                     input->priClicked = false;
                 }
             }
             
             u32 tileColour = 0xFF888888;
             
-            DrawRect(backBuffer, minX, minY, maxX, maxY, tileColour);
+            DrawRect(backBuffer, min, max, tileColour);
         }
     }
     
     Win32_DrawSelectorGrid(&globalBackBuffer, selectorInfo, 0xFFFFFFFF);
 }
 
-internal_func void Win32_UpdateRenderCursorBoxes(Win32_BackBuffer *backBuffer, Win32_Input *input, u32 startCursor, u32 endCursor, s32 paddingX, s32 paddingY, s32 boxDim, u32 boxColour)
+internal_func void Win32_UpdateRenderCursorBoxes(Win32_BackBuffer *backBuffer, Win32_Input *input, u8 startCursor, u8 endCursor, v2<s32> padding, s32 boxDim, u32 boxColour)
 {
-    for (u32 i = startCursor; i < endCursor; ++i)
+    for (u8 i = startCursor; i < endCursor; ++i)
     {
         u32 rectColour = 0xFF000000;
         switch (i)
@@ -416,19 +414,19 @@ internal_func void Win32_UpdateRenderCursorBoxes(Win32_BackBuffer *backBuffer, W
         }
         
         s32 minX = (i * boxDim) + i;
-        if (Win32_DrawGUIBox(backBuffer, input, input->priCursor, i, minX, paddingY, minX + boxDim, paddingY + boxDim, boxColour, rectColour))
+        if (Win32_DrawGUIBox(backBuffer, input, input->priCursor, i, v2<s32>{minX, padding.y}, v2<s32>{minX + boxDim, padding.y + boxDim}, boxColour, rectColour))
         {
             input->priCursor = i;
         }
     }
 }
 
-internal_func void Win32_UpdateRenderFloorBoxes(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, Win32_Input *input, u32 endFloor, s32 paddingX, s32 paddingY, s32 boxDim, u32 boxColour)
+internal_func void Win32_UpdateRenderFloorBoxes(Win32_BackBuffer *backBuffer, Win32_MapInfo *mapInfo, Win32_Input *input, u32 endFloor, v2<s32> padding, s32 boxDim, u32 boxColour)
 {
     for (u32 i = 0; i < endFloor; ++i)
     {
-        s32 minY = paddingY - ((i * boxDim) + i);
-        if (Win32_DrawGUIBox(backBuffer, input, mapInfo->currZ, i, paddingX, minY, paddingX + boxDim, minY + boxDim, boxColour, 0xFF000000))
+        s32 minY = padding.y - ((i * boxDim) + i);
+        if (Win32_DrawGUIBox(backBuffer, input, mapInfo->currZ, i, v2<s32>{padding.x, minY}, v2<s32>{padding.x + boxDim, minY + boxDim}, boxColour, 0xFF000000))
         {
             mapInfo->currZ = i;
         }
@@ -442,7 +440,7 @@ internal_func void Win32_LoadMap(TileMap *tileMap, char *fileName)
     HANDLE fileHandle = CreateFileA(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
     if (fileHandle != INVALID_HANDLE_VALUE)
     {
-        u32 *readBlock = (u32 *)calloc(((tileMap->chunkCountX * tileMap->chunkCountY) * (tileMap->chunkDim * tileMap->chunkDim) * tileMap->chunkCountZ), sizeof(u32));
+        u8 *readBlock = (u8 *)malloc(((tileMap->chunkCount.x * tileMap->chunkCount.y) * (tileMap->chunkDim * tileMap->chunkDim) * tileMap->chunkCount.z));
         
         LARGE_INTEGER fileSize;
         if (GetFileSizeEx(fileHandle, &fileSize))
@@ -451,16 +449,16 @@ internal_func void Win32_LoadMap(TileMap *tileMap, char *fileName)
             DWORD bytesRead;
             ReadFile(fileHandle, readBlock, fileSize32, &bytesRead, 0);
             
-            for (u32 z = 0; z < tileMap->chunkCountZ; ++z)
+            for (u32 z = 0; z < tileMap->chunkCount.z; ++z)
             {
-                for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCountY); ++y)
+                for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCount.y); ++y)
                 {
-                    for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCountX); ++x)
+                    for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCount.x); ++x)
                     {
-                        TileChunkPosition chunkPos = GetChunkPosition(tileMap, x, y, z);
-                        TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunkX, chunkPos.chunkY, chunkPos.chunkZ);
+                        TileChunkPosition chunkPos = GetChunkPosition(tileMap, v3<u32>{x, y, z});
+                        TileChunk *chunk = GetTileChunk(tileMap, chunkPos.chunk);
                         
-                        SetTileValue(tileMap, chunk, chunkPos.relTileX, chunkPos.relTileY, readBlock[(z * ((tileMap->chunkDim * tileMap->chunkCountX) * (tileMap->chunkDim * tileMap->chunkCountY))) + (y * (tileMap->chunkDim * tileMap->chunkCountX)) + x]);
+                        SetTileValue(tileMap, chunk, chunkPos.relTile, readBlock[(z * ((tileMap->chunkDim * tileMap->chunkCount.x) * (tileMap->chunkDim * tileMap->chunkCount.y))) + (y * (tileMap->chunkDim * tileMap->chunkCount.x)) + x]);
                     }
                 }
             }
@@ -476,17 +474,17 @@ internal_func void Win32_SaveMap(TileMap *tileMap, char *filename)
     HANDLE fileHandle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_NEW, 0, 0);
     if (fileHandle != INVALID_HANDLE_VALUE)
     {
-        u32 *writeBlock = (u32 *)calloc(((tileMap->chunkCountX * tileMap->chunkCountY) * (tileMap->chunkDim * tileMap->chunkDim) * tileMap->chunkCountZ), sizeof(u32));
+        u8 *writeBlock = (u8 *)malloc(((tileMap->chunkCount.x * tileMap->chunkCount.y) * (tileMap->chunkDim * tileMap->chunkDim) * tileMap->chunkCount.z));
         s32 index = 0;
         
-        for (u32 z = 0; z < tileMap->chunkCountZ; ++z)
+        for (u32 z = 0; z < tileMap->chunkCount.z; ++z)
         {
-            for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCountY); ++y)
+            for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCount.y); ++y)
             {
-                for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCountX); ++x)
+                for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCount.x); ++x)
                 {
-                    u32 tileID = GetTileValue(tileMap, x, y, z);
-                    DataBlockFill<u32, u32>(writeBlock, &tileID, &index);
+                    u8 tileID = GetTileValue(tileMap, v3<u32>{x, y, z});
+                    DataBlockFill<u8, u8>(writeBlock, &tileID, &index);
                 }
             }
         }
@@ -675,18 +673,17 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
             tileMap->chunkMask = (1 << tileMap->chunkShift) - 1;
             tileMap->chunkDim = (1 << tileMap->chunkShift);
             
-            tileMap->chunkCountX = 128;
-            tileMap->chunkCountY = 128;
-            tileMap->chunkCountZ = 2;
-            tileMap->chunks = (TileChunk *)calloc((tileMap->chunkCountX * tileMap->chunkCountY) * tileMap->chunkCountZ, sizeof(TileChunk));
+            tileMap->chunkCount = {128, 128, 2};
+            tileMap->chunks = (TileChunk *)calloc((tileMap->chunkCount.x * tileMap->chunkCount.y) * tileMap->chunkCount.z, sizeof(TileChunk));
             
-            for (u32 z = 0; z < tileMap->chunkCountZ; ++z)
+            for (u32 z = 0; z < tileMap->chunkCount.z; ++z)
             {
-                for (u32 y = 0; y < tileMap->chunkCountY; ++y)
+                for (u32 y = 0; y < tileMap->chunkCount.y; ++y)
                 {
-                    for (u32 x = 0; x < tileMap->chunkCountX; ++x)
+                    for (u32 x = 0; x < tileMap->chunkCount.x; ++x)
                     {
-                        tileMap->chunks[x + (tileMap->chunkCountX * y) + ((tileMap->chunkCountX * tileMap->chunkCountY) * z)].tiles =(u32 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u32));
+                        // NOTE(bSalmon): Use calloc to zero the tiles
+                        tileMap->chunks[x + (tileMap->chunkCount.x * y) + ((tileMap->chunkCount.x * tileMap->chunkCount.y) * z)].tiles =(u8 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u8));
                     }
                 }
             }
@@ -695,8 +692,7 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
             mapInfo.segmentDimChunks = 4;
             mapInfo.segmentDimTiles = tileMap->chunkDim * mapInfo.segmentDimChunks;
             mapInfo.gridLineCount = mapInfo.segmentDimTiles - 1;
-            mapInfo.currSegmentX = 0;
-            mapInfo.currSegmentY = 0;
+            mapInfo.currSegment = {};
             mapInfo.currZ = 0;
             
             Win32_SelectorInfo selectorInfo = {};
@@ -775,29 +771,28 @@ s32 CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, s32 
                 
                 Win32_UpdateRenderEditorMap(&globalBackBuffer, &mapInfo, tileMap, &input);
                 
-                selectorInfo.gridLineCount = (tileMap->chunkCountX / 4) - 1;
+                selectorInfo.gridLineCount = (tileMap->chunkCount.x / 4) - 1;
                 selectorInfo.gridDimPixels = globalBackBuffer.width / 4;
                 selectorInfo.padding = 1;
                 selectorInfo.gridLeft = selectorInfo.padding;
                 selectorInfo.gridRight = selectorInfo.gridLeft + selectorInfo.gridDimPixels;
                 selectorInfo.gridBottom = (globalBackBuffer.height - 1) - selectorInfo.padding;
                 selectorInfo.gridTop = selectorInfo.gridBottom - selectorInfo.gridDimPixels;
-                selectorInfo.tileSide = (f32)selectorInfo.gridDimPixels / ((f32)tileMap->chunkCountX / (f32)mapInfo.segmentDimChunks);
+                selectorInfo.tileSide = (f32)selectorInfo.gridDimPixels / ((f32)tileMap->chunkCount.x / (f32)mapInfo.segmentDimChunks);
                 
                 Win32_UpdateRenderSelector(&globalBackBuffer, &selectorInfo, &input);
                 
-                mapInfo.currSegmentX = selectorInfo.currSelection->x;
-                mapInfo.currSegmentY = selectorInfo.currSelection->y;
+                mapInfo.currSegment.x = selectorInfo.currSelection->x;
+                mapInfo.currSegment.y = selectorInfo.currSelection->y;
                 
                 if (!input.topLeftSet)
                 {
                     s32 boxDim = (globalBackBuffer.height / 2) / 10;
                     
-                    Win32_UpdateRenderCursorBoxes(&globalBackBuffer, &input, 0, input.totalCursors, 1, 1, boxDim, 0xFFFFFFFF);
+                    Win32_UpdateRenderCursorBoxes(&globalBackBuffer, &input, 0, input.totalCursors, v2<s32>{1, 1}, boxDim, 0xFFFFFFFF);
                     
-                    u32 floorBoxPadX = mapInfo.gridLeft - (boxDim + (boxDim / 10)); 
-                    u32 floorBoxPadY = globalBackBuffer.height - (boxDim + (boxDim / 10));
-                    Win32_UpdateRenderFloorBoxes(&globalBackBuffer, &mapInfo, &input, tileMap->chunkCountZ, floorBoxPadX, floorBoxPadY, boxDim, 0xFFFFFFFF);
+                    v2<s32> floorBoxPad = {mapInfo.gridLeft - (boxDim + (boxDim / 10)), globalBackBuffer.height - (boxDim + (boxDim / 10))}; 
+                    Win32_UpdateRenderFloorBoxes(&globalBackBuffer, &mapInfo, &input, tileMap->chunkCount.z, floorBoxPad, boxDim, 0xFFFFFFFF);
                 }
                 
                 Win32_WindowDimensions windowDim = Win32_GetWindowDimensions(window);

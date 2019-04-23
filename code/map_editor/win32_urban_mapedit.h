@@ -1,3 +1,11 @@
+/*
+Project: Urban Sprawl Map Editor
+File: win32_urban_mapedit.h
+Author: Brock Salmon
+Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
+*/
+
+#ifndef WIN32_URBAN_MAPEDIT_H
 
 struct Win32_Menus
 {
@@ -31,8 +39,7 @@ struct Win32_MapInfo
     s32 gridTop;
     s32 gridBottom;
     
-    u32 currSegmentX;
-    u32 currSegmentY;
+    v2<u32> currSegment;
     u32 currZ;
 };
 
@@ -57,9 +64,9 @@ struct Win32_Input
     b32 priClicked;
     b32 secClicked;
     POINT mouseLoc;
-    u32 priCursor;
-    u32 secCursor;
-    s32 totalCursors;
+    u8 priCursor;
+    u8 secCursor;
+    u8 totalCursors;
     b32 rectCursor;
     b32 topLeftSet;
 };
@@ -104,40 +111,43 @@ inline void Win32_DrawHorizontalLine(Win32_BackBuffer *backBuffer, s32 y, s32 le
     }
 }
 
-inline void DrawRect(Win32_BackBuffer *backBuffer, f32 minX, f32 minY, f32 maxX, f32 maxY, u32 colour)
+inline void DrawRect(Win32_BackBuffer *backBuffer, v2<f32>min, v2<f32>max, u32 colour)
 {
     u8 *endOfBuffer = (u8 *)backBuffer->memory + (backBuffer->pitch * backBuffer->height);
     
-    s32 roundedMinX = RoundF32ToS32(minX);
-    s32 roundedMinY = RoundF32ToS32(minY);
-    s32 roundedMaxX = RoundF32ToS32(maxX);
-    s32 roundedMaxY = RoundF32ToS32(maxY);
+    v2<s32> roundedMin = {};
+    roundedMin.x = RoundF32ToS32(min.x);
+    roundedMin.y = RoundF32ToS32(min.y);
     
-    if (roundedMinX < 0)
+    v2<s32> roundedMax = {};
+    roundedMax.x = RoundF32ToS32(max.x);
+    roundedMax.y = RoundF32ToS32(max.y);
+    
+    if (roundedMin.x < 0)
     {
-        roundedMinX = 0;
+        roundedMin.x = 0;
     }
     
-    if (roundedMinY < 0)
+    if (roundedMin.y < 0)
     {
-        roundedMinY = 0;
+        roundedMin.y = 0;
     }
     
-    if (roundedMaxX > backBuffer->width)
+    if (roundedMax.x > backBuffer->width)
     {
-        roundedMaxX = backBuffer->width;
+        roundedMax.x = backBuffer->width;
     }
     
-    if (roundedMaxY > backBuffer->height)
+    if (roundedMax.y > backBuffer->height)
     {
-        roundedMaxY = backBuffer->height;
+        roundedMax.y = backBuffer->height;
     }
     
-    for (s32 x = roundedMinX; x < roundedMaxX; ++x)
+    for (s32 x = roundedMin.x; x < roundedMax.x; ++x)
     {
-        u8 *pixel = (u8 *)backBuffer->memory + (x * backBuffer->bytesPerPixel) + (roundedMinY * backBuffer->pitch);
+        u8 *pixel = (u8 *)backBuffer->memory + (x * backBuffer->bytesPerPixel) + (roundedMin.y * backBuffer->pitch);
         
-        for (s32 y = roundedMinY; y < roundedMaxY; ++y)
+        for (s32 y = roundedMin.y; y < roundedMax.y; ++y)
         {
             if ((pixel >= backBuffer->memory) && ((pixel + 4) <= endOfBuffer))
             {
@@ -149,7 +159,7 @@ inline void DrawRect(Win32_BackBuffer *backBuffer, f32 minX, f32 minY, f32 maxX,
     }
 }
 
-inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u32 condition, u32 active, s32 minX, s32 minY, s32 maxX, s32 maxY, u32 boxColour, u32 rectColour)
+inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u32 condition, u32 active, v2<s32> min, v2<s32> max, u32 boxColour, u32 rectColour)
 {
     // NOTE(bSalmon): As this function is used for GUI buttons, this returns true if the button is clicked
     b32 result = false;
@@ -159,30 +169,41 @@ inline b32 Win32_DrawGUIBox(Win32_BackBuffer *backBuffer, Win32_Input *input, u3
         boxColour = 0xFFFF0000;
     }
     
-    Win32_DrawHorizontalLine(backBuffer, minY, minX, maxX, boxColour);
-    Win32_DrawHorizontalLine(backBuffer, maxY, minX, maxX, boxColour);
-    Win32_DrawVerticalLine(backBuffer, minX, minY, maxY, boxColour);
-    Win32_DrawVerticalLine(backBuffer, maxX, minY, maxY, boxColour);
+    Win32_DrawHorizontalLine(backBuffer, min.y, min.x, max.x, boxColour);
+    Win32_DrawHorizontalLine(backBuffer, max.y, min.x, max.x, boxColour);
+    Win32_DrawVerticalLine(backBuffer, min.x, min.y, max.y, boxColour);
+    Win32_DrawVerticalLine(backBuffer, max.x, min.y, max.y, boxColour);
     
     if (input->priClicked)
     {
-        if ((input->mouseLoc.x >= minX) && (input->mouseLoc.x < maxX) &&
-            (input->mouseLoc.y >= minY) && (input->mouseLoc.y < maxY))
+        if ((input->mouseLoc.x >= min.x) && (input->mouseLoc.x < max.x) &&
+            (input->mouseLoc.y >= min.y) && (input->mouseLoc.y < max.y))
         {
             result = true;
             input->priClicked = false;
         }
     }
     
-    s32 rectPadding = (maxX - minX) / 4;
-    DrawRect(backBuffer, (f32)(minX + rectPadding), (f32)(minY + rectPadding), (f32)(maxX - rectPadding), (f32)(maxY - rectPadding), rectColour);
+    s32 rectPadding = (max.x - min.x) / 4;
+    min = min + rectPadding;
+    max = max - rectPadding;
+    
+    v2<f32> minF = {};
+    minF.x = (f32)min.x;
+    minF.y = (f32)min.y;
+    
+    v2<f32> maxF = {};
+    maxF.x = (f32)max.x;
+    maxF.y = (f32)max.y;
+    
+    DrawRect(backBuffer, minF, maxF, rectColour);
     
     return result;
 }
 
 inline void Win32_ClearTileMap(TileMap *tileMap)
 {
-    u32 tileMapSizeChunks = (tileMap->chunkCountX * tileMap->chunkCountY);
+    u32 tileMapSizeChunks = (tileMap->chunkCount.x * tileMap->chunkCount.y) * tileMap->chunkCount.z;
     for (u32 i = 0; i < tileMapSizeChunks; ++i)
     {
         free(tileMap->chunks[i].tiles);
@@ -193,6 +214,9 @@ inline void Win32_ClearTileMap(TileMap *tileMap)
     
     for (u32 i = 0; i < tileMapSizeChunks; ++i)
     {
-        tileMap->chunks[i].tiles = (u32 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u32));
+        tileMap->chunks[i].tiles = (u8 *)calloc((tileMap->chunkDim * tileMap->chunkDim), sizeof(u8));
     }
 }
+
+#define WIN32_URBAN_MAPEDIT_H
+#endif // WIN32_URBAN_MAPEDIT_H

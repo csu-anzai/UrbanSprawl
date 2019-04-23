@@ -18,7 +18,7 @@ struct TileChunkPosition
 struct TileChunk
 {
     // TODO(bSalmon): Tile structure
-    u32 *tiles;
+    u8 *tiles;
 };
 
 struct TileMap

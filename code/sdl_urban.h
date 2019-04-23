@@ -46,10 +46,11 @@ struct SDLPL_AudioOutput
     s32 safetyBytes;
 };
 
-struct SDLPL_OutgoingNetworkPacket
+struct SDLPL_ClientInfo
 {
-    u8 *data;
-    s32 dataSize;
+    b8 isConnected;
+    b8 attemptingConnection;
+    u8 clientID;
 };
 
 struct SDLPL_DebugTimeMarker

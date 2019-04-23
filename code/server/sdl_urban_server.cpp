@@ -4,6 +4,29 @@ File: sdl_urban_server.cpp
 Author: Brock Salmon
 Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 */
+
+/*
+CLIENT -> SERVER PACKET STRUCTURE:
+
+On 1st Con:
+1 byte of trash
+
+Normal:
+   | ClientID | NewInput |
+   
+SERVER -> CLIENT PACKET STRUCTURE:
+
+On 1st Con:
+ | ClientID | World |
+ 
+Normal:
+ | players |
+ 
+// TODO(bSalmon): Can the players stuff be packaged better?
+ e.g. Only package each players.exists, players.facingDir, players.pos?
+ ServerPlayerInfo: exists (1), facingDir (1), pos (20), padding (2)
+*/
+
 #if URBAN_WIN32
 #include <Windows.h>
 #endif
@@ -12,9 +35,13 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #include "../SDL/SDL_net.h"
 
 #include "../urban.cpp"
-#include <stdio.h>
+#include "../urban_memory.h"
 
-#define OUTGOING_PACKET_SIZE 128
+#include <stdio.h>
+#include <direct.h>
+
+#define OUTGOING_CONNECTION_PACKET_SIZE KILOBYTES(10)
+#define OUTGOING_PACKET_SIZE 512
 
 #if URBAN_INTERNAL && URBAN_WIN32
 //////////////////////// DEBUG PLATFORM CODE //////////////////////
@@ -123,6 +150,8 @@ internal_func UDPsocket SDLS_InitSocket()
 
 s32 main(s32 argc, char *argv[])
 {
+    _chdir("../../data");
+    
     b32 running = true;
     UDPsocket udpSock = SDLS_InitSocket();
     
@@ -150,9 +179,6 @@ s32 main(s32 argc, char *argv[])
     gameMem.permanentStorage = VirtualAlloc(baseAddress, (mem_index)totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     gameMem.transientStorage = (u8 *)gameMem.permanentStorage + gameMem.permanentStorageSize;
     
-    // Initialise Map
-    
-    
     Game_Memory *memory = &gameMem;
     u64 lastCounter = SDL_GetPerformanceCounter();
     while (running)
@@ -162,18 +188,26 @@ s32 main(s32 argc, char *argv[])
         Game_State *gameState = (Game_State *)memory->permanentStorage;
         if (!memory->memInitialised)
         {
-            gameState->playerPos = {};
+            // Initialise as a singleplayer map to send out to the clients
+            InitMap_Singleplayer(gameState, memory);
             
-            InitMap(gameState, memory);
+            Player basePlayer = {};
+            basePlayer.facingDir = FACING_FRONT;
+            basePlayer.dims.y = gameState->world->tileMap->tileSideMeters * 0.9f;
+            basePlayer.dims.x = 0.5f * basePlayer.dims.y;
+            
+            for(s32 playerIndex = 0; playerIndex < ARRAY_COUNT(gameState->players); ++playerIndex)
+            {
+                gameState->players[playerIndex] = basePlayer;
+            }
+            
+            gameState->playerCount = 0;
             
             memory->memInitialised = true;
         }
         
         World *world = gameState->world;
         TileMap *tileMap = world->tileMap;
-        
-        f32 playerHeight = tileMap->tileSideMeters * 0.9f;
-        f32 playerWidth = 0.5f * playerHeight;
         
         UDPpacket *inPacket;
         inPacket = SDLNet_AllocPacket(512);
@@ -184,6 +218,8 @@ s32 main(s32 argc, char *argv[])
         
         if(SDLNet_UDP_Recv(udpSock, inPacket))
         {
+            // TODO(bSalmon): Get player ID and process accordingly
+            
             // Prepare the Outbound Packet to be filled
             UDPpacket *outPacket;
             outPacket = SDLNet_AllocPacket(OUTGOING_PACKET_SIZE);
@@ -191,32 +227,137 @@ s32 main(s32 argc, char *argv[])
             // Process Received Packet
             printf("\nUDP Packet incoming\n");
             printf("\tChannel:  %d\n", inPacket->channel);
-            printf("\tLen:  %d\n", inPacket->len);
-            printf("\tMaxlen:  %d\n", inPacket->maxlen);
             
             char *constructedAddress = ConstructIPString(inPacket->address.host, inPacket->address.port);
             printf("\tAddress: %s\n", constructedAddress);
             
-            printf("Processing Input...\n");
-            
-            Game_Input *input = (Game_Input *)inPacket->data;
-            
-            s32 index = 0;
-            if (Input(input, gameState, tileMap, playerWidth))
+            if (inPacket->len == 1)
             {
-                DataBlockFill<u8, TileMapPosition>(outPacket->data, &gameState->playerPos, &index);
+                UDPpacket *connectionPacket;
+                connectionPacket = SDLNet_AllocPacket(OUTGOING_CONNECTION_PACKET_SIZE);
+                
+                // Player requesting connection
+                if (gameState->playerCount < MAX_CLIENTS)
+                {
+                    for (s32 playerIndex = 0; playerIndex < ARRAY_COUNT(gameState->players); ++playerIndex)
+                    {
+                        if (gameState->players[playerIndex].id == 0)
+                        {
+                            // Connect the client
+                            gameState->playerCount++;
+                            gameState->players[playerIndex].exists = true;
+                            gameState->players[playerIndex].id = gameState->playerCount;
+                            
+                            break;
+                        }
+                    }
+                }
+                
+                printf("Connection Request received from %d:%d\n", inPacket->address.host, inPacket->address.port);
+                
+                printf("Preparing World to be sent back to Client\n");
+                
+                // Send World Info back to the Client
+                connectionPacket->address.host = inPacket->address.host;
+                connectionPacket->address.port = inPacket->address.port;
+                
+                s32 packingIndex = 0;
+                DataBlockFill<u8, u8>(connectionPacket->data, &gameState->playerCount, &packingIndex);
+                DataBlockFill<u8, v3<u32>>(connectionPacket->data, &tileMap->chunkCount, &packingIndex);
+                DataBlockFill<u8, u32>(connectionPacket->data, &tileMap->chunkShift, &packingIndex);
+                DataBlockFill<u8, u32>(connectionPacket->data, &tileMap->chunkMask, &packingIndex);
+                DataBlockFill<u8, u32>(connectionPacket->data, &tileMap->chunkDim, &packingIndex);
+                DataBlockFill<u8, s32>(connectionPacket->data, &tileMap->tileSidePixels, &packingIndex);
+                DataBlockFill<u8, f32>(connectionPacket->data, &tileMap->tileSideMeters, &packingIndex);
+                DataBlockFill<u8, f32>(connectionPacket->data, &tileMap->metersToPixels, &packingIndex);
+                
+                // NOTE(bSalmon):  Structure is z:0x, z:0y, z:1x, z:1y...
+                s32 coordIndex = packingIndex;
+                packingIndex += (sizeof(u32) * tileMap->chunkCount.z) * 2;
+                
+                b32 zBreak = false;
+                b32 xSet = false;
+                s32 xIndex = 0;
+                for (u32 z = 0; z < tileMap->chunkCount.z; ++z)
+                {
+                    zBreak = false;
+                    xSet = false;
+                    xIndex = 0;
+                    for (u32 y = 0; y < (tileMap->chunkDim * tileMap->chunkCount.y); ++y)
+                    {
+                        for (u32 x = 0; x < (tileMap->chunkDim * tileMap->chunkCount.x); ++x)
+                        {
+                            u8 tileID = GetTileValue(tileMap, v3<u32>{x, y, z});
+                            if (x != 0 && tileID == TILE_EMPTY && !xSet)
+                            {
+                                // NOTE(bSalmon): This marks where a particular row stops, as such every row must be the same length as the first row
+                                xIndex = coordIndex;
+                                DataBlockFill<u8, u32>(connectionPacket->data, &x, &coordIndex);
+                                xSet = true;
+                                break;
+                            }
+                            else if (x == 0 && tileID == TILE_EMPTY)
+                            {
+                                zBreak = true;
+                                
+                                // NOTE(bSalmon): This marks where the map stops, as such each row must have something occupying (x:0) to be processed
+                                DataBlockFill<u8, u32>(connectionPacket->data, &y, &coordIndex);
+                            }
+                            if (zBreak || (xSet && x >= connectionPacket->data[xIndex]))
+                            {
+                                break;
+                            }
+                            
+                            DataBlockFill<u8, u8>(connectionPacket->data, &tileID, &packingIndex);
+                        }
+                        
+                        if (zBreak)
+                        {
+                            break;
+                        }
+                    }
+                }
+                
+                connectionPacket->len = packingIndex;
+                
+                printf("World Info Prepared\n");
+                
+                if (SDLNet_UDP_Send(udpSock, -1, connectionPacket))
+                {
+                    printf("World Info sent to Client ID: %d at %s\n", gameState->playerCount, constructedAddress);
+                }
+                else
+                {
+                    printf("World Info send to Client ID: %d at %s failed\n", gameState->playerCount, constructedAddress);
+                }
+                
+                SDLNet_FreePacket(connectionPacket);
             }
-            
-            printf("Input Processing Done.\n");
-            
-            // Send Packet back to the Client
-            outPacket->address.host = inPacket->address.host;
-            outPacket->address.port = inPacket->address.port;
-            outPacket->len = sizeof(TileMapPosition);
-            
-            if (SDLNet_UDP_Send(udpSock, -1, outPacket))
+            else
             {
-                printf("Packet Sent containing: %s\n", (u8 *)outPacket->data);
+                u8 packetClientID = inPacket->data[0];
+                
+                printf("Processing Input...\n");
+                
+                Game_Input *input = (Game_Input *)&inPacket->data[1];
+                
+                s32 index = 0;
+                v2<f32> ddPlayer = Input(input, gameState, tileMap, packetClientID);
+                MovePlayer(input, gameState, tileMap, ddPlayer, packetClientID);
+                DataBlockFill<u8, Player[8]>(outPacket->data, &gameState->players, &index);
+                
+                printf("Input Processing Done.\n");
+                
+                // Send Packet back to the Client
+                outPacket->address.host = inPacket->address.host;
+                outPacket->address.port = inPacket->address.port;
+                outPacket->len = sizeof(Player[8]);
+                
+                if (SDLNet_UDP_Send(udpSock, -1, outPacket))
+                {
+                    printf("Packet sent to Client ID: %d at %d:%d\n", packetClientID, outPacket->address.host, outPacket->address.port);
+                }
+                
             }
             
             SDLNet_FreePacket(outPacket);

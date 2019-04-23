@@ -74,24 +74,29 @@ struct World
     TileMap *tileMap;
 };
 
+struct Player
+{
+    b8 exists;
+    TileMapPosition pos;
+    v2<f32> screenPos;
+    v2<f32> dPos;
+    u8 facingDir;
+    v2<f32> dims;
+    u8 id;
+};
+
 struct Game_State
 {
     MemoryRegion worldRegion;
     World *world;
     
     TileMapPosition cameraPos;
-    TileMapPosition playerPos;
     
-    v2<f32> dPlayer;
+    u8 playerCount;
+    Player players[MAX_CLIENTS];
     
     LoadedBitmap background;
-    u32 playerDir;
     CharacterBitmaps playerBitmaps[4];
-};
-
-struct InterpretedNetworkData
-{
-    TileMapPosition playerPos;
 };
 
 inline Game_Controller *GetGameController(Game_Input *input, s32 controllerIndex)

@@ -39,6 +39,21 @@ typedef bool b8;
 typedef float f32;
 typedef double f64;
 
+// Utilities
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
+#define SWAP(a, b) {decltype(a) temp = a; a = b; b = temp;}
+
+#if URBAN_SLOW
+#define ASSERT(expr) if(!(expr)) {*(s32 *)0 = 0;}
+#else
+#define ASSERT(expr)
+#endif
+
+#define KILOBYTES(value) ((value)*1024LL)
+#define MEGABYTES(value) (KILOBYTES(value)*1024LL)
+#define GIGABYTES(value) (MEGABYTES(value)*1024LL)
+#define TERABYTES(value) (GIGABYTES(value)*1024LL)
+
 #if URBAN_INTERNAL
 struct Debug_ReadFileResult
 {
@@ -157,6 +172,12 @@ struct Game_NetworkPacket
 {
     u8 *data;
 };
+
+inline Game_Controller *GetController(Game_Input *input, s32 controllerIndex)
+{
+    ASSERT(controllerIndex < ARRAY_COUNT(input->controllers));
+    return &input->controllers[controllerIndex];
+}
 
 #define GAME_UPDATE_RENDER(funcName) void funcName(Game_BackBuffer *backBuffer, Game_Input *input, Game_Memory *memory, b32 multiplayer, b32 isConnectPacket, Game_NetworkPacket *networkPacket, u8 clientID)
 typedef GAME_UPDATE_RENDER(game_updateRender);

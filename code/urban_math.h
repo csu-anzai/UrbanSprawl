@@ -388,25 +388,5 @@ type Sq(type a)
     return result;
 }
 
-template <class type, class type_two>
-type Inner(v2<type> a, v2<type_two> b)
-{
-    type result = 0;
-    
-    result = (a.x * b.x) + (a.y * b.y);
-    
-    return result;
-}
-
-template <class type, class type_two>
-type Inner(v3<type> a, v3<type_two> b)
-{
-    type result = 0;
-    
-    result = (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
-    
-    return result;
-}
-
 #define URBAN_MATH_H
 #endif // URBAN_MATH_H

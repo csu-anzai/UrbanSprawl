@@ -12,9 +12,28 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 
 #include <stdio.h>
 
-internal_func void Game_OutputSound(Game_AudioBuffer *audioBuffer, s32 toneHz)
+internal_func void Game_OutputSound(Game_State *gameState, Game_AudioBuffer *audioBuffer, s32 toneHz)
 {
-    
+    // UPCOMING(bSalmon): This probably needs to be reworked to suit different audio formats
+    s16 volume = 4000;
+    s32 wavePeriod = audioBuffer->sampleRate / toneHz;
+    s16 *sampleOut = (s16 *)audioBuffer->samples;
+    for (s32 sampleIndex = 0; sampleIndex < audioBuffer->sampleCount; ++sampleIndex)
+    {
+        
+        f32 sineValue = sinf(gameState->tSine);
+        s16 sampleValue = (s16)(sineValue * volume);
+        
+        //s16 sampleValue = 0;
+        *sampleOut++ = sampleValue;
+        *sampleOut++ = sampleValue;
+        
+        gameState->tSine += 2.0f * PI * 1.0f / (f32)wavePeriod;
+        if (gameState->tSine > 2.0f * PI)
+        {
+            gameState->tSine -= 2.0f * PI;
+        }
+    }
 }
 
 internal_func void DrawRect(Game_BackBuffer *backBuffer, f32 minX, f32 minY, f32 maxX, f32 maxY, u32 colour)
@@ -63,7 +82,6 @@ internal_func void DrawRect(Game_BackBuffer *backBuffer, f32 minX, f32 minY, f32
 }
 
 // NOTE(bSalmon): The Input, Update and Render functions were abstracted from Game_UpdateRender so that the server can use the same functions without the Rendering capability
-
 internal_func void InitMap_Singleplayer(Game_State *gameState, Game_Memory *memory)
 {
     InitMemRegion(&gameState->worldRegion, memory->permanentStorageSize - sizeof(Game_State), (u8 *)memory->permanentStorage + sizeof(Game_State));
@@ -194,24 +212,6 @@ internal_func v2<f32> Input(Game_Input *input, Game_State *gameState, TileMap *t
             ddPlayer.x = controller->lAverageX;
             ddPlayer.y = -controller->lAverageY;
             
-            // TODO(bSalmon): Needs to be velocity based
-            if (controller->lAverageX < 0)
-            {
-                gameState->players[clientID - 1].facingDir = FACING_LEFT;
-            }
-            if (controller->lAverageX > 0)
-            {
-                gameState->players[clientID - 1].facingDir = FACING_RIGHT;
-            }
-            if (controller->lAverageY < 0)
-            {
-                gameState->players[clientID - 1].facingDir = FACING_BACK;
-            }
-            if (controller->lAverageY > 0)
-            {
-                gameState->players[clientID - 1].facingDir = FACING_FRONT;
-            }
-            
             if (controller->faceDown.endedDown)
             {
                 ddPlayer *= 50.0f;
@@ -226,22 +226,18 @@ internal_func v2<f32> Input(Game_Input *input, Game_State *gameState, TileMap *t
             if (controller->dPadLeft.endedDown)
             {
                 ddPlayer.x = -1.0f;
-                gameState->players[clientID - 1].facingDir = FACING_LEFT;
             }
             if (controller->dPadRight.endedDown)
             {
                 ddPlayer.x = 1.0f;
-                gameState->players[clientID - 1].facingDir = FACING_RIGHT;
             }
             if (controller->dPadUp.endedDown)
             {
                 ddPlayer.y = -1.0f;
-                gameState->players[clientID - 1].facingDir = FACING_BACK;
             }
             if (controller->dPadDown.endedDown)
             {
                 ddPlayer.y = 1.0f;
-                gameState->players[clientID - 1].facingDir = FACING_FRONT;
             }
             
             if (controller->faceDown.endedDown)
@@ -278,6 +274,33 @@ internal_func void MovePlayer(Game_Input *input, Game_State *gameState, TileMap 
     // P = 0.5 * At^2 + Vt + oP
     // V = At + oV
     // A = ddPlayer
+    
+    // Update Facing Direction depending on the player's velocity direction
+    f32 playerDPosX = gameState->players[clientID - 1].dPos.x;
+    f32 playerDPosY = gameState->players[clientID - 1].dPos.y;
+    if (playerDPosX < 0.5f &&
+        playerDPosX > -0.5f &&
+        playerDPosY < 0.5f &&
+        playerDPosY > -0.5f)
+    {
+        // Don't change the sprite if the velocity is too slow
+    }
+    else if (playerDPosX < 0 && AbsF(playerDPosX) > AbsF(playerDPosY))
+    {
+        gameState->players[clientID - 1].facingDir = FACING_LEFT;
+    }
+    else if (playerDPosX > 0 && AbsF(playerDPosX) > AbsF(playerDPosY))
+    {
+        gameState->players[clientID - 1].facingDir = FACING_RIGHT;
+    }
+    else if (playerDPosY < 0 && AbsF(playerDPosY) > AbsF(playerDPosX))
+    {
+        gameState->players[clientID - 1].facingDir = FACING_BACK;
+    }
+    else if (playerDPosY > 0 && AbsF(playerDPosY) > AbsF(playerDPosX))
+    {
+        gameState->players[clientID - 1].facingDir = FACING_FRONT;
+    }
     
     newPlayerPos = RecanonicalisePos(tileMap, newPlayerPos);
     
@@ -329,7 +352,7 @@ internal_func void MovePlayer(Game_Input *input, Game_State *gameState, TileMap 
             normal = v2<f32>{0, -1};
         }
         
-        gameState->players[clientID - 1].dPos = gameState->players[clientID - 1].dPos - normal * (1 * Inner(gameState->players[clientID - 1].dPos, normal));
+        gameState->players[clientID - 1].dPos = gameState->players[clientID - 1].dPos - normal * (1 * (gameState->players[clientID - 1].dPos * normal));
     }
     else
     {
@@ -387,8 +410,8 @@ internal_func void Render(Game_BackBuffer *backBuffer, Game_State *gameState, Ti
                     tileColour = 0xFF008080;
                 }
                 
-                if ((x == gameState->players[0].pos.absTile.x) &&
-                    (y == gameState->players[0].pos.absTile.y))
+                if ((x == gameState->players[clientID - 1].pos.absTile.x) &&
+                    (y == gameState->players[clientID - 1].pos.absTile.y))
                 {
                     tileColour = 0xFF000000;
                 }
@@ -404,19 +427,17 @@ internal_func void Render(Game_BackBuffer *backBuffer, Game_State *gameState, Ti
                 
             }
             
-            for (u8 playerIndex = 0; playerIndex < gameState->playerCount; ++playerIndex)
+            for (u8 playerIndex = 0; playerIndex < MAX_CLIENTS; ++playerIndex)
             {
-                if (playerIndex == clientID - 1)
+                if (playerIndex != clientID - 1 && gameState->players[playerIndex].exists)
                 {
-                    continue;
-                }
-                
-                s32 xDiff = gameState->players[clientID - 1].pos.absTile.x - gameState->players[playerIndex].pos.absTile.x;
-                s32 yDiff = gameState->players[clientID - 1].pos.absTile.y - gameState->players[playerIndex].pos.absTile.y;
-                if (xDiff == relX && yDiff == relY)
-                {
-                    gameState->players[playerIndex].screenPos.x = screenCenter.x - (tileMap->metersToPixels * gameState->cameraPos.tileRel.x) - ((f32)relX * tileMap->tileSidePixels) + gameState->players[playerIndex].pos.tileRel.x;
-                    gameState->players[playerIndex].screenPos.y = screenCenter.y - (tileMap->metersToPixels * gameState->cameraPos.tileRel.y) - ((f32)relY * tileMap->tileSidePixels) - gameState->players[playerIndex].pos.tileRel.y;
+                    s32 xDiff = gameState->players[clientID - 1].pos.absTile.x - gameState->players[playerIndex].pos.absTile.x;
+                    s32 yDiff = gameState->players[clientID - 1].pos.absTile.y - gameState->players[playerIndex].pos.absTile.y;
+                    if (xDiff == relX && yDiff == relY)
+                    {
+                        gameState->players[playerIndex].screenPos.x = screenCenter.x - (tileMap->metersToPixels * gameState->cameraPos.tileRel.x) - ((f32)relX * tileMap->tileSidePixels) + gameState->players[playerIndex].pos.tileRel.x * tileMap->metersToPixels;
+                        gameState->players[playerIndex].screenPos.y = screenCenter.y - (tileMap->metersToPixels * gameState->cameraPos.tileRel.y) - ((f32)relY * tileMap->tileSidePixels) + gameState->players[playerIndex].pos.tileRel.y * tileMap->metersToPixels;
+                    }
                 }
             }
         }
@@ -427,9 +448,9 @@ internal_func void Render(Game_BackBuffer *backBuffer, Game_State *gameState, Ti
     
     DrawRect(backBuffer, playerLeft, playerTop, playerLeft + (tileMap->metersToPixels * gameState->players[clientID - 1].dims.x), playerTop + (tileMap->metersToPixels * gameState->players[clientID - 1].dims.y), 0xFF0000FF);
     
-    for (u32 playerIndex = gameState->playerCount - 1; playerIndex < gameState->playerCount; --playerIndex)
+    for (u32 playerIndex = 0; playerIndex < MAX_CLIENTS; ++playerIndex)
     {
-        if (gameState->cameraPos.absTile.z == gameState->players[playerIndex].pos.absTile.z)
+        if (gameState->cameraPos.absTile.z == gameState->players[playerIndex].pos.absTile.z && gameState->players[playerIndex].exists)
         {
             CharacterBitmaps *charBitmaps = &gameState->playerBitmaps[gameState->players[playerIndex].facingDir];
             DrawBitmap(backBuffer, &charBitmaps->feet, gameState->players[playerIndex].screenPos, charBitmaps->alignX, charBitmaps->alignY);
@@ -490,17 +511,10 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
             gameState->players[0] = player;
             gameState->playerCount++;
             
-            // NOTE(bSalmon): Test dummy
-            gameState->players[1] = player;
-            gameState->players[1].pos.absTile = v3<u32>{5, 5, 0};
-            gameState->playerCount++;
-            
             InitMap_Singleplayer(gameState, memory);
             
             gameState->players[0].dims.y = gameState->world->tileMap->tileSideMeters * 0.9f;
             gameState->players[0].dims.x = 0.5f * gameState->players[0].dims.y;
-            gameState->players[1].dims = gameState->players[0].dims;
-            
         }
         
         memory->memInitialised = true;
@@ -511,11 +525,28 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
     
     if (multiplayer && !isConnectPacket && networkPacket->data)
     {
-        s32 index = 0;
-        for (u8 playerIndex = 0; playerIndex < 8; ++playerIndex)
+        local_persist b32 playerPosSet = false;
+        if (!playerPosSet)
         {
-            FillVariableFromDataBlock<Player, u8>(&gameState->players[playerIndex], networkPacket->data, &index);
+            for (u8 playerIndex = 0; playerIndex < MAX_CLIENTS; ++playerIndex)
+            {
+                CopyMem(&gameState->players[playerIndex], &networkPacket->data[playerIndex * sizeof(Player)], sizeof(Player));
+            }
+            
+            playerPosSet = true;
         }
+        
+        for (u8 playerIndex = 0; playerIndex < MAX_CLIENTS; ++playerIndex)
+        {
+            if (playerIndex != (clientID - 1))
+            {
+                CopyMem(&gameState->players[playerIndex], &networkPacket->data[playerIndex * sizeof(Player)], sizeof(Player));
+            }
+        }
+        
+        // clientID needs to be 1 for singleplayer or the world eats itself
+        v2<f32> ddPlayer = Input(input, gameState, tileMap, clientID);
+        MovePlayer(input, gameState, tileMap, ddPlayer, clientID);
     }
     else
     {
@@ -537,5 +568,5 @@ extern "C" GAME_UPDATE_RENDER(Game_UpdateRender)
 extern "C" GAME_GET_AUDIO_SAMPLES(Game_GetAudioSamples)
 {
     Game_State *gameState = (Game_State *)memory->permanentStorage;
-    Game_OutputSound(audioBuffer, 256);
+    Game_OutputSound(gameState, audioBuffer, 256);
 }

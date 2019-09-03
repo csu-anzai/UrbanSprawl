@@ -8,6 +8,7 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #ifndef URBAN_INTRINSICS_H
 
 #include <intrin.h>
+#include <math.h>
 
 struct BitScanResult
 {
@@ -58,6 +59,20 @@ inline BitScanResult FindLeastSignificantSetBit(u32 value)
     }
 #endif
     
+    return result;
+}
+
+template <class type>
+inline type AbsF(type value)
+{
+    type result = (type)fabs(value);
+    return result;
+}
+
+template <class type>
+inline type Abs(type value)
+{
+    type result = (type)abs(value);
     return result;
 }
 

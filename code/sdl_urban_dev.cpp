@@ -36,7 +36,6 @@ internal_func void SDLPL_BuildExePathFileName(SDLPL_State *state, char *filename
     ConcatenateStrings(state->exeNameBegin - state->exeName, state->exeName,
                        StringLength(filename), filename,
                        destCount, dest);
-    
 }
 
 inline FILETIME SDLPL_GetLastWriteTime(char *filename)

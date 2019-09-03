@@ -239,7 +239,7 @@ s32 main(s32 argc, char *argv[])
                 // Player requesting connection
                 if (gameState->playerCount < MAX_CLIENTS)
                 {
-                    for (s32 playerIndex = 0; playerIndex < ARRAY_COUNT(gameState->players); ++playerIndex)
+                    for (s32 playerIndex = 0; playerIndex < MAX_CLIENTS; ++playerIndex)
                     {
                         if (gameState->players[playerIndex].id == 0)
                         {
@@ -364,7 +364,7 @@ s32 main(s32 argc, char *argv[])
         }
         
         SDLNet_FreePacket(inPacket);
-        
+        /*
         if (SDLS_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter()) < targetTickRate)
         {
             s32 sleepTime = (s32)((targetTickRate - SDLS_GetSecondsElapsed(lastCounter, SDL_GetPerformanceCounter())) * 1000) - 1;
@@ -382,7 +382,7 @@ s32 main(s32 argc, char *argv[])
                 // Spin
             }
         }
-        
+        */
         u64 endCounter = SDL_GetPerformanceCounter();
         lastCounter = endCounter;
     }

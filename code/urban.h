@@ -18,21 +18,6 @@ Notice: (C) Copyright 2018 by Brock Salmon. All Rights Reserved.
 #include <stdio.h>
 #include <malloc.h>
 
-// Utilities
-#define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
-#define SWAP(a, b) {decltype(a) temp = a; a = b; b = temp;}
-
-#if URBAN_SLOW
-#define ASSERT(expr) if(!(expr)) {*(s32 *)0 = 0;}
-#else
-#define ASSERT(expr)
-#endif
-
-#define KILOBYTES(value) ((value)*1024LL)
-#define MEGABYTES(value) (KILOBYTES(value)*1024LL)
-#define GIGABYTES(value) (MEGABYTES(value)*1024LL)
-#define TERABYTES(value) (GIGABYTES(value)*1024LL)
-
 #define PI 3.14159265359f
 #define MAX_CLIENTS 8
 
@@ -87,6 +72,8 @@ struct Player
 
 struct Game_State
 {
+    f32 tSine;
+    
     MemoryRegion worldRegion;
     World *world;
     
